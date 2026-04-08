@@ -518,11 +518,15 @@ if __name__ == "__main__":
         pca_components=50, dataset_abbr="IP", batch_size=32
     )
 
-    # FIX 5: Use vision_patch_size=13
+    # Dynamically extract the patch size mapped inside the actual loaded tensor data
+    # (Pre-processed IP dataset files are 9x9 instead of the paper's 13x13)
+    actual_patch_size = train_loader.dataset.X.shape[-1]
+
+    # FIX 5: Dynamically configure vision_patch_size to avoid matmul mismatches
     model = LDGnet(
         embed_dim=512,
         inchannel=50,  
-        vision_patch_size=13,  # 13x13 
+        vision_patch_size=actual_patch_size,  
         num_classes=16,
         use_pretrained_clip=True,
     )
