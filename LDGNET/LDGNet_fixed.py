@@ -455,12 +455,18 @@ def train_ldgnet(model, train_loader, test_loader, device, epochs=100, lr=1e-4, 
 
         if oa > best_oa:
             best_oa = oa
+            torch.save(model.state_dict(), "best_ldgnet_weights.pth")
 
         print(
             f"Epoch [{epoch + 1}/{epochs}] | Time: {time.time() - start_time:.1f}s | "
             f"Train Loss: {train_loss / max(1, len(train_loader)):.4f} | Train Acc: {train_acc:.2f}% | "
             f"Val OA: {oa * 100:.2f}% (Best: {best_oa * 100:.2f}%)"
         )
+
+    print("\n🏁 Final Model Evaluation (Using Best Epoch Weights):")
+    if os.path.exists("best_ldgnet_weights.pth"):
+        model.load_state_dict(torch.load("best_ldgnet_weights.pth"))
+    evaluate_ldgnet(model, test_loader, device, num_classes=16, silent=False)
 
 
 def evaluate_ldgnet(model, test_loader, device, num_classes=16, silent=True):
@@ -493,6 +499,11 @@ def evaluate_ldgnet(model, test_loader, device, num_classes=16, silent=True):
     kappa = cohen_kappa_score(all_targets, all_preds)
 
     if not silent:
+        print("-" * 40)
+        print("Per-class Accuracy:")
+        for i, acc in enumerate(per_class_acc):
+            class_name = DATASET_CONFIGS["IP"]["class_names"][i] if i < len(DATASET_CONFIGS["IP"]["class_names"]) else f"Class {i}"
+            print(f"  {class_name:30s}: {acc * 100:.2f}%")
         print("-" * 40)
         print(f"Overall Accuracy (OA): {oa * 100:.2f}%")
         print(f"Average Accuracy (AA): {aa * 100:.2f}%")
