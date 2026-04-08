@@ -85,10 +85,10 @@ DATASET_CONFIGS = {
     }
 }
 
-processed_root = "/kaggle/input/datasets/adityachaudhary1306/hsi-ds-pca-50-train-5/"
-model_dir = "/kaggle/working/best_models"
-results_dir = "/kaggle/working/results"
-logs_dir = "/kaggle/working/logs"
+processed_root = "/home/23dcs505/datasets/IP"
+model_dir = "/home/23dcs505/best_models"
+results_dir = "/home/23dcs505/results"
+logs_dir = "/home/23dcs505/logs"
 
 for directory in [model_dir, results_dir, logs_dir]:
     os.makedirs(directory, exist_ok=True)
