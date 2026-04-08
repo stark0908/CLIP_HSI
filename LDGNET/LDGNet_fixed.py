@@ -448,9 +448,6 @@ def train_ldgnet(model, train_loader, test_loader, device, epochs=100, lr=1e-4, 
             train_correct += pred.eq(target).sum().item()
             train_total += target.size(0)
             
-            # Early break for dummy run
-            if len(data) < 32 and (batch_idx > 5): break 
-
         train_acc = 100.0 * train_correct / train_total
         oa, aa, kappa = evaluate_ldgnet(
             model, test_loader, device, num_classes=16, silent=True
@@ -464,8 +461,6 @@ def train_ldgnet(model, train_loader, test_loader, device, epochs=100, lr=1e-4, 
             f"Train Loss: {train_loss / max(1, len(train_loader)):.4f} | Train Acc: {train_acc:.2f}% | "
             f"Val OA: {oa * 100:.2f}% (Best: {best_oa * 100:.2f}%)"
         )
-        if epoch == 2: # Keep demo short
-            break
 
 
 def evaluate_ldgnet(model, test_loader, device, num_classes=16, silent=True):
