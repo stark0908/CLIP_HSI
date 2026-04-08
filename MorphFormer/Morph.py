@@ -22,31 +22,8 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, cohen_kappa_score, accuracy_score
 
 # ==============================================================================
-# 1. SETUP AND UTILS INTEGRATION
+# 1. SETUP AND CONFIGS
 # ==============================================================================
-base_input = "/kaggle/input/datasets/adityachaudhary1306/utility-scripts"
-dest_root = "/kaggle/working"
-
-folders_to_move = ["utils"]
-for folder in folders_to_move:
-    src = os.path.join(base_input, folder)
-    dst = os.path.join(dest_root, folder)
-    if os.path.exists(dst):
-        shutil.rmtree(dst)
-    try:
-        shutil.copytree(src, dst)
-        print(f"✅ Moved {folder} to {dst}")
-    except FileNotFoundError:
-        print(
-            f"⚠️ Utility scripts not found at {src}. Ensure the path is correct or MetricsTracker is defined."
-        )
-
-try:
-    from utils.metrics_utils import MetricsTracker
-except ImportError:
-    print(
-        "⚠️ Could not import MetricsTracker. Please ensure it is in the correct directory."
-    )
 
 # Memory optimization settings
 MEMORY_OPTIMIZATION = {
@@ -512,12 +489,12 @@ def train_morphformer():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Creating morphFormer Model on {device}...")
     model = MorphFormerWrapper(
-        FM=16, NC=config["spectral_dim"], Classes=config["num_classes"]
+        FM=16, NC=pca_comps, Classes=config["num_classes"]
     ).to(device)
 
     optimizer = Adam(model.parameters(), lr=1e-4, weight_decay=1e-4)
     best_test_loss = float("inf")
-    scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
+    scaler = torch.amp.GradScaler("cuda") if torch.cuda.is_available() else None
 
     print(f"{'=' * 60}\nSTARTING TRAINING: morphFormer on {config['name']}\n{'=' * 60}")
 
@@ -533,7 +510,7 @@ def train_morphformer():
             optimizer.zero_grad()
 
             if scaler:
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast("cuda"):
                     loss, logits, _ = model(data, target)
                 scaler.scale(loss).backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
