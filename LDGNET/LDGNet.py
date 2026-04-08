@@ -44,7 +44,7 @@ DATASET_CONFIGS = {
     }
 }
 
-PROCESSED_ROOT = "/home/23dcs505/datasets/IP_5"
+PROCESSED_ROOT = "/home/23dcs505/datasets/IP"
 
 
 # ==============================================================================
