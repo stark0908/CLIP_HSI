@@ -19,8 +19,8 @@ from sklearn.metrics import accuracy_score, cohen_kappa_score, confusion_matrix
 # ─────────────────────────────────────────────────────────────
 # 0. CONFIG  (edit here if needed)
 # ─────────────────────────────────────────────────────────────
-DATASET_ABBR = "PU"
-NUM_CLASSES = 9
+DATASET_ABBR = "IP"
+NUM_CLASSES = 16
 PCA_COMPONENTS = 50
 PATCH_SIZE = 9
 EMBED_DIM = 64  # d_model; must be divisible by NUM_HEADS
@@ -32,12 +32,12 @@ LR = 1e-3
 WEIGHT_DECAY = 0.01
 EPOCHS = 100
 PATIENCE = 25
-BATCH_SIZE = 56
+BATCH_SIZE = 32
 
 # ── Paths (same structure as your existing notebook) ─────────
-PROCESSED_ROOT = "/kaggle/input/datasets/adityachaudhary1306/hsi-ds-pca-50-train-5/"
-MODEL_DIR = "/kaggle/working/best_models"
-RESULTS_DIR = "/kaggle/working/results"
+PROCESSED_ROOT = "/home/23dcs505/datasets/IP"
+MODEL_DIR = "/home/Stark/CLIP_HSI/DiffFormer/best_models"
+RESULTS_DIR = "/home/Stark/CLIP_HSI/DiffFormer/results"
 PLOTS_DIR = os.path.join(RESULTS_DIR, "plots")
 
 for d in [MODEL_DIR, RESULTS_DIR, PLOTS_DIR]:
@@ -46,15 +46,22 @@ for d in [MODEL_DIR, RESULTS_DIR, PLOTS_DIR]:
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 CLASS_NAMES = [
-    "Asphalt",
-    "Meadows",
-    "Gravel",
-    "Trees",
-    "Painted metal sheets",
-    "Bare Soil",
-    "Bitumen",
-    "Self-Blocking Bricks",
-    "Shadows",
+    "Alfalfa",
+    "Corn notill",
+    "Corn mintill",
+    "Corn",
+    "Grass pasture",
+    "Grass trees",
+    "Grass pasture mowed",
+    "Hay windrowed",
+    "Oats",
+    "Soybean notill",
+    "Soybean mintill",
+    "Soybean clean",
+    "Wheat",
+    "Woods",
+    "Buildings Grass Trees Drives",
+    "Stone Steel Towers",
 ]
 
 print(
@@ -381,14 +388,14 @@ def train_diffformer(train_loader, test_loader):
     use_amp = DEVICE.type == "cuda"
     scaler = torch.cuda.amp.GradScaler() if use_amp else None
 
-    best_path = os.path.join(MODEL_DIR, f"diffformer_{DATASET_ABBR}_best.pth")
+    best_path = os.path.join(MODEL_DIR, "diffformer_IP_best.pth")
     best_val_loss = float("inf")
     patience_ctr = 0
 
     history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
 
     print(f"\n{'=' * 65}")
-    print(f"  TRAINING — DiffFormer on Pavia University")
+    print(f"  TRAINING — DiffFormer on Indian Pines")
     print(f"  Device: {DEVICE}  |  Epochs: {EPOCHS}  |  Patience: {PATIENCE}")
     print(f"{'=' * 65}")
     t0 = time.time()
@@ -519,7 +526,7 @@ def evaluate_diffformer(model, test_loader, best_path: str):
 
     # ── Print (IEEE TGRS style) ───────────────────────────────
     print(f"\n{'=' * 65}")
-    print(f"  DiffFormer  |  Pavia University  |  Test-set Results")
+    print(f"  DiffFormer  |  Indian Pines  |  Test-set Results")
     print(f"{'=' * 65}")
     print(f"  Overall Accuracy  (OA) : {oa:.2f}%")
     print(f"  Average Accuracy  (AA) : {aa:.2f}%")
@@ -532,7 +539,7 @@ def evaluate_diffformer(model, test_loader, best_path: str):
     # ── Save JSON ─────────────────────────────────────────────
     results = {
         "model": "DiffFormer",
-        "dataset": "Pavia University",
+        "dataset": "Indian Pines",
         "overall_accuracy": round(oa, 4),
         "average_accuracy": round(aa, 4),
         "cohen_kappa": round(float(kappa), 6),
@@ -542,7 +549,7 @@ def evaluate_diffformer(model, test_loader, best_path: str):
         "confusion_matrix": cm.tolist(),
         "num_test_samples": len(labels),
     }
-    out_json = os.path.join(RESULTS_DIR, f"diffformer_{DATASET_ABBR}_results.json")
+    out_json = os.path.join(RESULTS_DIR, "diffformer_IP_results.json")
     with open(out_json, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\n💾 Results  → {out_json}")
@@ -558,11 +565,11 @@ def evaluate_diffformer(model, test_loader, best_path: str):
         xticklabels=[str(i + 1) for i in range(NUM_CLASSES)],
         yticklabels=[str(i + 1) for i in range(NUM_CLASSES)],
     )
-    ax.set_title("DiffFormer – Pavia University – Confusion Matrix", fontsize=14)
+    ax.set_title("DiffFormer – Indian Pines – Confusion Matrix", fontsize=14)
     ax.set_xlabel("Predicted")
     ax.set_ylabel("True")
     plt.tight_layout()
-    cm_path = os.path.join(PLOTS_DIR, f"diffformer_{DATASET_ABBR}_confusion_matrix.png")
+    cm_path = os.path.join(PLOTS_DIR, "diffformer_IP_confusion_matrix.png")
     plt.savefig(cm_path, dpi=150)
     plt.close()
     print(f"📊 Confusion matrix → {cm_path}")
@@ -589,9 +596,9 @@ def plot_history(history: dict):
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
 
-    plt.suptitle("DiffFormer Training History – Pavia University", fontsize=14)
+    plt.suptitle("DiffFormer Training History – Indian Pines", fontsize=14)
     plt.tight_layout()
-    path = os.path.join(PLOTS_DIR, f"diffformer_{DATASET_ABBR}_training_history.png")
+    path = os.path.join(PLOTS_DIR, "diffformer_IP_training_history.png")
     plt.savefig(path, dpi=150)
     plt.close()
     print(f"📈 Training history → {path}")
