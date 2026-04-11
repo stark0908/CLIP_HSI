@@ -1,0 +1,842 @@
+IEEE JOURNAL OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE SENSING, VOL. 18, 2025
+
+10419
+
+DiffFormer: A Differential Spatial-Spectral
+Transformer for Hyperspectral Image Classification
+Muhammad Ahmad , Manuel Mazzara , Salvatore Distefano, Adil Mehmood Khan ,
+and Silvia Liberata Ullo , Senior Member, IEEE
+
+Abstract—Hyperspectral image classification (HSIC) presents
+significant challenges due to spectral redundancy and spatial discontinuity, both of which can negatively impact classification performance. To mitigate these issues, this work proposes the differential spatial-spectral transformer (DiffFormer), a novel framework
+designed to enhance feature discrimination and improve classification accuracy. At its core, DiffFormer incorporates a differential multihead self-attention mechanism, which accentuates subtle
+spectral-spatial variations by applying differential attention across
+neighboring patches. The architecture integrates spectral-spatial
+tokenization, utilizing 3-D convolution-based patch embeddings,
+positional encoding, and a stack of transformer layers augmented
+with the SwiGLU activation function—a variant of the gated linear unit—to enable efficient and expressive feature extraction. In
+addition, a token-based classification head ensures robust representation learning, facilitating precise pixelwise labeling. Extensive experiments on benchmark hyperspectral datasets demonstrate that DiffFormer consistently outperforms state-of-the-art
+methods in classification accuracy, computational efficiency, and
+generalizability.
+Index Terms—Differential attention, hyperspectral image
+classification (HSIC), spatial-spectral transformer (SST).
+
+I. INTRODUCTION
+YPERSPECTRAL imaging has emerged as a transformative technology with diverse applications, including
+precision agriculture [1], object classification [2], environmental
+monitoring [3], urban mapping for mineral exploration [4], [5],
+
+H
+
+Received 20 February 2025; revised 24 March 2025; accepted 3 April 2025.
+Date of publication 8 April 2025; date of current version 25 April 2025. This
+work was supported in part by the European Union - Next generation EU PNRR - Missione 4, Componente 2, Investimento 1.1 - Bando PRIN 2022 PNRR
+- Decreto Direttoriale n. 1409 del 14-09-2022 - Progetto RESILIENT, under
+Grant CUP J53D23015040001, project id. P2022S4TTP, and in part by the
+Next generation EU - PNRR, SERICS – “SECURITY AND RIGHTS IN THE
+CYBERSPACE” project 3D-SEECSDE, under Grant CUP J33C22002810001,
+project id. PE00000014. (Corresponding author: Muhammad Ahmad.)
+Muhammad Ahmad is with the SDAIA-KFUPM Joint Research Center for
+Artificial Intelligence (JRCAI), King Fahd University of Petroleum and Minerals, Dhahran 31261, Saudi Arabia (e-mail: mahmad00@gmail.com).
+Manuel Mazzara is with the Institute of Software Development and Engineering, Innopolis University, 420500 Innopolis, Russia (e-mail: m.mazzara@
+innopolis.ru).
+Salvatore Distefano is with Dipartimento di Matematica e Informatica-MIFT,
+University of Messina, 98121 Messina, Italy (e-mail: sdistefano@unime.it).
+Adil Mehmood Khan is with the School of Computer Science, University of
+Hull, HU6 7RX Hull, U.K. (e-mail: a.m.khan@hull.ac.uk).
+Silvia Liberata Ullo is with the Engineering Department, University of Sannio,
+82100 Benevento, Italy (e-mail: mahmad00@gmail.com).
+https://github.com/mahmad000/DiffFormer.
+Digital Object Identifier 10.1109/JSTARS.2025.3558889
+
+food processing [6], [7], bakery products [8], bloodstain identification [9], [10], and meat processing [11], [12]. By capturing
+detailed spectral information at the pixel level, hyperspectral
+image (HSI) enables fine-grained material classification [13].
+However, its practical deployment is constrained by challenges
+such as high dimensionality, spectral variability, complex spatial
+structures, and the Hughes phenomenon [14], [15]. Addressing
+these challenges requires classification frameworks that are not
+only highly accurate but also computationally efficient and capable of effectively integrating spatial-spectral information [16],
+[17], [18], [19].
+Recent advancements in Transformer-based models have
+demonstrated significant success in hyperspectral image classification (HSIC) by leveraging self-attention mechanisms to process image patches effectively [20], [21], [22], [23], [24], [25].
+For example, Huang et al. [26] introduced the spectral-spatial
+vision foundation model-based transformer (SS-VFMT), which
+enhances pretrained vision foundation models (VFMs) with
+specialized spectral and spatial enhancement modules. They
+further propose a patch relationship distillation strategy (SSVFMT-D) to optimize the utilization of pretrained knowledge
+and introduce the spectral-spatial vision-language transformer
+(SS-VLFMT) for generalized zero-shot classification, enabling
+the recognition of previously unseen classes. Although these
+methods achieve impressive performance, they are constrained
+by high-computational complexity and a strong dependence
+on pretrained models, which may limit their adaptability to
+domain-specific applications.
+Shu et al. [27] proposed a dual attention transformer network
+(DATN) for HSIC that integrates a spatial-spectral hybrid transformer module to capture global spatial-spectral dependencies
+and a spectral local-conv block (SLCB) module to extract local spectral features effectively. While DATN enhances feature
+representation by combining global and local information, its
+reliance on multihead self-attention (MHSA) mechanisms may
+still lead to computational overhead. Zhong et al. [28] proposed a
+spectral-spatial transformer network that integrates spatial attention and spectral association modules to address convolutional
+limitations while a factorized architecture search framework
+enables efficient architecture optimization. Despite achieving
+competitive accuracy with reduced computational costs, relying on a specialized architecture search framework may limit
+flexibility for broader applications.
+Yang et al. [29] proposed the quaternion transformer
+network, which addresses the limitations of traditional
+
+© 2025 The Authors. This work is licensed under a Creative Commons Attribution 4.0 License. For more information, see
+https://creativecommons.org/licenses/by/4.0/
+
+10420
+
+IEEE JOURNAL OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE SENSING, VOL. 18, 2025
+
+transformers in HSIC by leveraging quaternion algebra for
+efficient 3-D structure processing and spectral-spatial representation. However, the reliance on hypercomplex computations
+may increase implementation complexity and resource requirements. Zhang et al. [30] proposed a LiT network that integrates
+lightweight self-attention modules and convolutional tokenization to balance local feature extraction and global dependency
+capture for HSIC. Despite improved efficiency and reduced
+overfitting, its reliance on controlled sampling strategies may
+limit adaptability to diverse datasets. Yang et al. [31] proposed a
+HiT classification network that combines spectral-adaptive 3-D
+convolution and Conv-Permutator modules to enhance spatialspectral representation in HSIs, addressing convolutional neural
+networks (CNNs)’ limitations in mining spectral sequences.
+However, the added complexity of these modules may increase
+computational overhead. Yu et al. [32] proposed the MSTNet combining a self-attentive encoder and multilevel features
+decoding within an efficient transformer-based framework for
+HSIC. However, reliance on sequence-based processing and positional embeddings may underexploit the inherent 3-D structure
+of HSIs. Zhang et al. [33] proposed the MATNet which integrates multiattention mechanisms and transformers for HSIC,
+improving boundary pixel classification with spatial-channel
+attention and a novel Lpoly loss function. However, reliance
+on semantic-level tokenization may limit fine-grained feature
+preservation.
+Ye et al. [34] introduced a novel differential transformer
+architecture designed for noise cancellation. However, its applicability to HSIC is constrained by several limitations. First,
+the reliance on subtractive attention for sparse patterns may
+fail to effectively address the spectral redundancy and spatial
+discontinuity inherent in HSIC, resulting in suboptimal feature
+discrimination. Furthermore, the model is primarily designed
+for text-based tasks and lacks essential components such as
+spectral-spatial tokenization and domain-specific architectural
+adaptations required for high-dimensional remote sensing data,
+which are fundamental to spatial-spectral transformers (SSTs).
+Moreover, SSTs themselves present several challenges for
+instance, training large-scale SST models is computationally
+expensive, primarily due to the quadratic complexity of the
+self-attention mechanism with respect to sequence length, which
+limits scalability [35], [36], [37]. Unlike CNNs, which inherently encode translation invariance through shared-weight convolutional filters, SSTs often struggle to maintain robust spatial
+representations under minor input translations [38], [39], [40].
+In addition, the fixed-size patch tokenization employed in SSTs
+may hinder the model’s ability to capture fine-grained spectralspatial details, thereby affecting classification performance [41],
+[42], [43]. Another critical limitation is the requirement for large
+labeled datasets to achieve optimal performance. In data-limited
+scenarios, SSTs are prone to overfitting, restricting their effectiveness in real-world applications with limited annotated
+hyperspectral samples [44]. Therefore, this study proposes a
+novel framework designed to overcome the aforementioned
+limitations through the following key contributions.
+1) Differential Attention Mechanism for Localized Feature Discrimination: The proposed differential MHSA
+
+(DMHSA) mechanism enhances hyperspectral feature
+representation by computing differential attention scores.
+These scores highlight subtle spectral-spatial variations
+while mitigating spectral redundancy and spatial noise, allowing for more discriminative interpixel modeling. This
+approach significantly improves classification accuracy by
+refining spectral-spatial feature dependencies.
+2) Integration of SwiGLU Activation in Spectral-Spatial
+Transformers: The differential spatial-spectral transformer (DiffFormer) integrates SwiGLU, a variant of
+the gated linear unit (GLU) activation function, into the
+feed-forward layers of the transformer blocks. SwiGLU’s
+adaptive gating mechanism enables selective feature enhancement, improving the model’s capacity to capture
+intricate spectral-spatial dependencies while maintaining
+computational efficiency.
+3) Class Token for Unified Spectral-Spatial Representation:
+To achieve global spectral-spatial feature aggregation, a
+learnable class token is introduced, summarizing information across hyperspectral bands. In addition, sinusoidal
+positional encoding is applied to hyperspectral data, ensuring precise spatial and spectral continuity modeling.
+This tailored encoding enhances the alignment between
+spectral-spatial tokenization and feature representation, a
+critical factor for improving HSIC performance.
+4) Efficient Patch-Based Spectral-Spatial Tokenization: The
+DiffFormer employs a 3-D convolutional patch embedding
+strategy that simultaneously extracts spectral and spatial
+features while reducing input dimensionality. This method
+ensures that essential spectral-spatial relationships are preserved, allowing for computationally efficient processing
+without sacrificing feature richness.
+II. PROPOSED METHODOLOGY
+This section introduces the proposed differential SST (DiffFormer) model for HSIC. DiffFormer integrates differential
+attention mechanisms and spatial-spectral tokenization to effectively encode both spatial and spectral dependencies. The
+architectural components and key innovations are illustrated
+in Fig. 1. Designed to capture complex spatial and spectral relationships in HSIs, DiffFormer combines convolutional
+and transformer-based methodologies. Its core components include spatial-spectral patch embedding, positional encoding, the
+DMHSA module, and a classification head.
+A. Spatial-Spectral Patch Embedding
+An HSI cube X = {xi , yi } ∈ RH×W ×K consists of spectral
+vectors xi = {xi,1 , xi,2 , xi,3 , . . . , xi,K }, where xi represents
+the spectral information of pixel i, and yi denotes its corresponding class label. Here, H and W define the spatial dimensions
+(height and width) of the HSI, while K represents the number
+of spectral channels. Each pixel i is described by a spectral vector
+xi ∈ Rk , with {xi,1 , xi,2 , . . . , xi,K } representing its spectral
+values, and yi being an integer indicating the class assignment.
+The HSI cube is partitioned into overlapping 3-D patches,
+where each patch is centered at spatial coordinates (α, β) and
+
+AHMAD et al.: DiffFORMER: A DIFFERENTIAL SPATIAL-SPECTRAL TRANSFORMER FOR HYPERSPECTRAL IMAGE CLASSIFICATION
+
+10421
+
+Fig. 1. Schematic representation of the DiffFormer pipeline for HSIC. The pipeline starts with hyperspectral data preprocessing, where fused patches are generated
+and spatial-spectral features are extracted. DMHSA is employed within the encoder to refine the attention mechanism by integrating positional embeddings for
+enhanced spectral-spatial relationships. The hierarchical encoding layers aggregate the learned features across L − 1 layers, enabling multiscale representation
+learning.
+
+spans P × P pixels across K spectral bands. This results in
+a 3-D subregion that encapsulates both spatial and spectral
+information. The total number of extracted patches, m, is computed as follows:
+m = (H − P + 1) × (W − P + 1)
+
+(1)
+
+assuming a stride of s = 1. If the stride s is smaller than the
+patch size P , the patches overlap. The overlap ratio, r, is given
+as follows:
+s
+(2)
+r =1−
+P
+where r quantifies the extent of overlap between adjacent
+patches. When s = P , no overlap occurs (r = 0), whereas, for
+s < P , the patches overlap, with the overlap ratio increasing
+as the stride decreases. Each patch undergoes spatial-spectral
+patch embedding. A 3-D convolutional layer extracts feature
+representations using patches of size P × P × K, ensuring
+efficient spectral-spatial feature learning as follows:
+Xpatch ∈ RNpatch ×dembed
+
+(3)
+
+where Npatch is the number of patches and dembed is the embedding dimension. In addition, a trainable class token is appended
+to this sequence to facilitate global feature aggregation.
+B. Positional Encoding
+To preserve spatial context, a sinusoidal positional encoding
+is incorporated into the patch embeddings as follows:
+Xpos = Xpatch + PE
+
+(4)
+
+where PE ∈ R(Npatch +1)×dembed encodes spatial relationships.
+The positional encoding matrix is precomputed using trigonometric functions as follows:
+
+
+pos
+(5)
+PE(pos, 2i) = sin
+2i/d
+embed
+10000
+
+
+pos
+.
+(6)
+100002i/dembed
+In contrast to learnable positional embeddings, sinusoidal encoding facilitates smooth interpolation for unseen input lengths,
+thereby preserving spatial coherence in hyperspectral data.
+PE(pos, 2i + 1) = cos
+
+
+
+C. Differential Multihead Self-Attention (DMHSA)
+The core innovation of DiffFormer lies in the DMHSA
+module. Unlike conventional MHSA, which primarily captures
+global dependencies, DMHSA introduces differential operations
+on attention scores to model fine-grained variations—crucial for
+HSIC. The standard attention scores are computed as follows:
+QKT
+S= √
+dhead
+
+(7)
+
+where Q, K, V represent the query, key, and value matrices,
+respectively, and dhead is the head dimension. To introduce
+differential attention, the DMHSA module computes as follows:
+
+
+QKT − Δ(QKT )
+√
+Sdiff = softmax
+(8)
+dhead
+where Δ(QKT ) captures the difference in attention scores
+across neighboring spectral-spatial tokens. This formulation explicitly encodes local contrastive dependencies, distinguishing
+spectral features that are critical for fine-grained classification.
+The differential operation Sdiff introduces several key benefits: 1) Relative attention dynamics: Unlike absolute attention
+scores, Sdiff emphasizes changes in attention values, making it
+effective in detecting transitions between consecutive tokens.
+2) Enhanced sensitivity to local variations: By highlighting
+significant attention shifts, it improves the model’s ability to recognize fine-grained contextual differences—essential for HSIC
+tasks. 3) Sparsity and interpretability: By suppressing uniform
+or redundant attention patterns, the differential operation yields
+sparse and interpretable attention maps, reducing computational
+
+10422
+
+IEEE JOURNAL OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE SENSING, VOL. 18, 2025
+
+overhead. 4) Robustness to noise: The differential formulation
+mitigates sensitivity to small perturbations in query-key interactions, making the model resilient in noisy environments. 5)
+Sequential dependency encoding: By focusing on attention transitions, DMHSA naturally captures sequential dependencies,
+beneficial for tasks with strong spatial or temporal correlations.
+6) Multiscale representation: When combined with hierarchical
+or multihead attention, the mechanism effectively captures both
+absolute and relative importance across different granularities.
+7) Regularization effect: The differential operation helps smooth
+attention transitions, preventing abrupt changes that could arise
+from overfitting, thereby enhancing model generalization. Finally, the resulting attention weights are used to compute the
+weighted sum of values as follows:
+Z = Sdiff V.
+
+(9)
+
+Each encoder block integrates DMHSA with the SwiGLU
+activation function to enhance feature expressiveness. The
+SwiGLU activation is defined as follows:
+(10)
+
+where σ(·) denotes the sigmoid function. Layer normalization
+and residual connections ensure stable training and effective
+gradient flow. The output from the final SST layer is projected
+through a dense layer to extract the class token representation.
+This class token is then processed by fully connected layers with
+L2 regularization to generate the classification logits as follows:
+y = softmax(Wzcls + b)
+
+(11)
+
+where zcls represents the class token embedding and W, b are
+trainable parameters.
+E. Computational Complexity and Implementation
+To ensure a fair computational cost comparison, we analyze the complexity of DiffFormer relative to both standard transformer-based and CNN-based architectures. The core
+computational component, the DMHSA mechanism, retains
+2
+· dhead ) complexity of conventional self-attention.
+the O(Npatch
+However, it introduces computational sparsity by leveraging
+spectral-spatial differential scoring, which refines attention
+maps and reduces redundant operations.
+a) Comparison with CNN-based architectures: Unlike
+CNNs, which exhibit O(Npatch · k 2 · C 2 ) complexity (where k
+is the kernel size and C is the number of channels), DiffFormer
+effectively balances global spectral dependence modeling and
+localized feature extraction with a comparable parameter footprint. This enables better long-range spatial-spectral interactions
+while maintaining computational efficiency.
+b) Computational cost of DMHSA versus standard MHSA:
+The standard MHSA mechanism performs full pairwise attention computation with complexity as follows:
+2
+· dhead ).
+OMHSA = O(Npatch
+
+In contrast, DMHSA introduces differential scoring, modifying attention logits as follows:
+S = S + λ(S[:, 1 :] − S[:, : −1])
+
+(12)
+
+(13)
+
+where S is the self-attention score matrix. This results in an additional term of O(Npatch · dhead ), yielding an overall complexity
+of
+2
+· dhead ) + O(Npatch · dhead ).
+ODMHSA = O(Npatch
+
+D. Transformer Encoder Block
+
+SwiGLU(x, g) = x  σ(g) + x
+
+TABLE I
+SUMMARY OF THE HSI DATASETS USED FOR EXPERIMENTAL EVALUATION
+
+(14)
+
+Since Npatch  1 in HSI, the additional term remains asymptotically insignificant, leading to a negligible increase in computational overhead ( 4.6%), as verified in our empirical runtime
+analysis.
+c) Implementation and Experimental Setup: All experiments are conducted using TensorFlow with mixed-precision
+training and GPU acceleration for computational efficiency. We
+utilize NVIDIA RTX 3090 GPUs for training, employing the
+Adam optimizer with a learning rate of 10−4 . Performance
+is evaluated based on the following metrics overall accuracy
+(OA), average accuracy (AA), and Kappa coefficient (κ). To
+ensure reproducibility, we use identical random seeds, dataset
+partitions, and training hyperparameters across all comparative
+models.
+III. EXPERIMENTAL DATASETS AND SETTINGS
+To validate the efficacy of the DiffFormer, we utilize four HSI
+datasets characterized by diverse spatial and spectral features.
+This section details the datasets, experimental setup, evaluation
+metrics, and comparative results to demonstrate the robustness
+and adaptability of the DiffFormer. The experimental datasets
+include WHU-Hi-HanChuan (HC) [45], Salinas (SA), Pavia
+University (PU), and University of Houston (UH). Table I provides the experimental datasets’ key details and characteristics.
+The experimental settings for evaluating the DiffFormer were
+designed to ensure a robust assessment of its performance across
+the different datasets. During the training phase, the Adam optimizer from the TensorFlow legacy module is used with a learning
+rate of 0.001 and a decay rate of 1 × 10−6 , helping the model
+converge efficiently while minimizing the risk of overfitting. The
+training process spans 50 epochs, with a batch size of 56, which
+is large enough to allow for efficient gradient updates without
+overwhelming the system’s memory capacity. The feed-forward
+network within each transformer layer consists of 4 × 64 units,
+enabling the model to extract rich and complex features from the
+input data. To mitigate overfitting, dropout is applied with a rate
+of 0.1 and layer normalization is incorporated with an epsilon
+value of 1 × 10−3 to stabilize the learning process. In addition,
+
+AHMAD et al.: DiffFORMER: A DIFFERENTIAL SPATIAL-SPECTRAL TRANSFORMER FOR HYPERSPECTRAL IMAGE CLASSIFICATION
+
+10423
+
+TABLE II
+CLASSIFICATION PERFORMANCE ACROSS DIFFERENT PATCH SIZES ON FOUR
+DATASETS, WITH THE HIGHEST VALUES FOR EACH METRIC
+HIGHLIGHTED IN BOLD
+
+Fig. 3.
+
+Impact of transformer layer depth on HSIC.
+TABLE III
+IMPACT OF ATTENTION HEADS ON OA ACROSS FOUR DATASETS
+
+Fig. 2.
+ples.
+
+Classification performance of different percentages of training samTABLE IV
+IMPACT OF DIFFERENT ACTIVATION FUNCTIONS ON DIFFFORMER
+
+a kernel regularizer with an L2 penalty of 0.01 is applied to
+the model’s weights to further promote generalization and avoid
+overfitting. To reduce the dimensionality of the spectral data,
+PCA is employed, selecting the top 15 spectral bands that
+contribute most significantly to the variance, thereby retaining
+the most relevant information for classification.
+After training and validating the model, its performance is
+evaluated on the test set using several key metrics: OA, which
+reflects the proportion of correctly classified samples across all
+classes; AA, which provides the mean classification accuracy
+per class; per-class accuracy, which evaluates the performance
+of the model for each class; and the κ, a measure that accounts
+for agreement between the predicted and true labels, adjusted
+for chance. These metrics together provide a comprehensive
+assessment of the model’s effectiveness in various aspects.
+IV. ABLATION AND PARAMETER OPTIMIZATION
+The choice of patch size significantly impacts the performance
+of HSIC models by influencing the balance between spatial
+detail and contextual information. Smaller patches allow the
+model to capture fine-grained spatial features but may lack
+broader contextual awareness, while larger patches provide more
+spatial context but could blur subtle spectral distinctions. The
+results in Table II highlight this tradeoff, showing that larger
+patch sizes generally yield superior classification performance
+across most datasets. However, excessively large patches can
+lead to diminishing returns or even performance degradation in
+some cases, as seen with the HC and UH datasets. These findings
+underscore the importance of selecting an optimal patch size to
+maximize classification accuracy while maintaining computational efficiency.
+The number of training samples directly affects the classification performance of HSIC models by influencing generalization ability and robustness. As shown in Fig. 2, increasing
+the percentage of training samples generally improves accuracy
+
+across all datasets. However, the rate of improvement diminishes
+beyond a certain point, indicating a saturation effect where
+additional samples provide marginal gains. The results highlight
+the tradeoff between dataset size and computational efficiency,
+emphasizing the importance of selecting an optimal training
+sample size to balance performance and resource constraints.
+Fig. 3 highlights the impact of transformer layer depth on classification performance in HSIC. The results show that increasing
+the number of layers initially improves accuracy, but excessive
+depth leads to diminishing returns and potential overfitting.
+While deeper models can capture more complex spatial-spectral
+dependencies, their performance fluctuates across datasets, indicating dataset-specific optimal depths. These findings emphasize the need for a balanced architectural design to maximize
+accuracy while maintaining computational efficiency.
+The number of attention heads directly influences the model’s
+ability to capture spatial-spectral relationships in HSIC as shown
+in Table III. This test evaluates how varying attention heads
+affect classification accuracy. The results reveal that increasing
+the number of heads does not always guarantee better performance, as optimal accuracy is dataset-dependent. While some
+datasets benefit from higher attention diversity, others show
+stable or slightly fluctuating accuracy. These findings highlight
+the tradeoff between attention richness and model efficiency,
+guiding the selection of an optimal head configuration.
+Table IV presents a quantitative analysis of the impact of
+different activation functions on the performance of DiffFormer.
+Among the tested activations, SwiGLU consistently outperforms all others, achieving the highest κ, OA, and AA across all
+
+10424
+
+IEEE JOURNAL OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE SENSING, VOL. 18, 2025
+
+TABLE V
+COMPARISON OF ACTIVATION FUNCTIONS FOR HSIC
+
+datasets. Notably, GELU offers competitive performance, particularly on PU, but lacks the fine-grained feature sensitivity required for HSIC. Traditional activations such as ReLU, PReLU,
+and ELU show comparatively lower accuracy, indicating that
+they may not be optimal for capturing the complex spectralspatial dependencies in HSIs. These results demonstrate that
+SwiGLU effectively enhances feature expressiveness, leading
+to superior classification accuracy.
+Table V further provides a qualitative assessment of activation
+functions in HSIC based on three critical properties: feature
+selectivity, gradient flow, and spectral adaptation. Unlike ReLU,
+PReLU, ELU, and GELU, SwiGLU uniquely supports feature
+selectivity and spectral adaptation, which are crucial for hyperspectral data representation. In addition, SwiGLU exhibits
+the best gradient flow, similar to GELU, mitigating vanishing
+gradients and improving model stability. The ability of SwiGLU
+to selectively amplify relevant spectral-spatial features while
+maintaining smooth gradient propagation explains its superior
+classification performance in Table IV. These findings highlight
+the importance of activation function choice in HSIC and establish SwiGLU as the most effective activation for DiffFormer,
+facilitating robust spectral-spatial representation learning.
+Overall, our analysis demonstrates that attention mechanisms,
+patch size selection, and training sample allocation significantly
+impact HSIC performance. DMHSA consistently outperforms
+other attention strategies by effectively capturing spectral-spatial
+dependencies, while optimal patch sizes strike a balance between
+fine-grained feature extraction and contextual information. In
+addition, increasing training samples improves classification
+accuracy, though with diminishing returns beyond a threshold.
+These findings underscore the importance of designing efficient
+attention-based models with well-calibrated input configurations to maximize classification accuracy and computational
+efficiency.
+V. COMPARATIVE RESULTS AND DISCUSSION
+This section presents a detailed discussion of the comparative results of DiffFormer against several SOTA methods. The
+selected comparative approaches encompass advanced architectures that exploit spatial-spectral information, transformerbased designs, hybrid models, and state-space models (Mamba).
+Specifically, we compare DiffFormer with the attention graph
+convolutional network (AGCN) [46], the pyramid hierarchical
+SST (PyFormer) [47], the spatial-spectral transformer with conditional position encoding (Former) [39], the spectral-spatial
+wavelet transformer (WaveFormer) [41], the hybrid convolution transformer (HViT) [48], the multihead spatial-spectral
+
+TABLE VI
+PERFORMANCE COMPARISON ON THE HC DATASET ACROSS CLASSWISE
+ACCURACIES, AGGREGATE METRICS, AND COMPUTATIONAL TIME
+
+Mamba‘ [49], and the spatial-spectral wavelet Mamba (WaveMamba) [44]. For all methods, we followed the experimental
+settings outlined in their respective papers while uniformly
+employing a 12 × 12 patch size for input data across all datasets.
+This ensures a standardized framework for evaluating classification performance, eliminating biases arising from variations
+in patch size.
+Table VI provides a comprehensive evaluation of various
+SOTA models on the HC dataset, reporting per-class accuracy,
+OA, AA, κ, and computational time. The results demonstrate
+that DiffFormer consistently outperforms other methods across
+most metrics, particularly in terms of κ and OA, achieving
+99.8664% and 99.3137%, respectively. Notably, DiffFormer
+achieves high per-class accuracy for critical classes such as
+Strawberry (99.6199%), Cowpea (99.7509%), and Sorghum
+(99.9377%), exceeding the performance of the best competitors
+such as WaveFormer and HViT. It also demonstrates competitive accuracy for challenging classes such as Water spinach
+(99.7222%), whereas other models, such as MHMamba, perform significantly worse (70.5555%). In addition, DiffFormer
+maintains computational efficiency with a runtime of 3669.13 s,
+which is significantly lower than models such as PyFormer
+(85926.77 s) and MHMamba (52495.05 s). The qualitative
+results presented in Fig. 4 further corroborate the quantitative
+findings, showing that DiffFormer produces more accurate and
+spatially coherent classification maps compared to its counterparts. Models such as MHMamba and WaveMamba exhibit
+noticeable misclassifications and noisy outputs, particularly in
+heterogeneous regions. In contrast, DiffFormer achieves smooth
+and precise segmentation, effectively capturing spatial-spectral
+relationships.
+Table VII summarizes the performance across various land
+cover classes in the UH dataset. Moreover, Fig. 5 illustrates the
+classification maps produced by each model, highlighting spatial
+variability and class-specific performance. The results show that
+the proposed DiffFormer achieves competitive accuracy across
+most classes, outperforming other models in critical categories.
+For example, DiffFormer attains a perfect accuracy (100%)
+for high-precision classes such as Synthetic Grass, Highway,
+and Running Track, demonstrating its robustness in distinguishing spectrally and spatially homogenous regions. Notably, the
+
+AHMAD et al.: DiffFORMER: A DIFFERENTIAL SPATIAL-SPECTRAL TRANSFORMER FOR HYPERSPECTRAL IMAGE CLASSIFICATION
+
+Fig. 4.
+
+Classification maps for the HC dataset, highlighting spatial variability and class-specific performance.
+
+Fig. 5.
+
+Classification maps for the UH dataset, highlighting spatial variability and class-specific performance.
+
+TABLE VII
+PERFORMANCE COMPARISON ON THE UH DATASET ACROSS CLASSWISE
+ACCURACIES, AGGREGATE METRICS, AND COMPUTATIONAL TIME
+
+model also achieves superior performance in challenging categories such as Commercial (100%) and Residential (99.2105%),
+where other models show variability. In contrast, models such
+as MHMamba underperform in several categories, such as
+Parking Lot 2 (62.8205%) and Water (96.2962%), indicating
+its limitations in handling complex spectral-spatial variations.
+
+10425
+
+Similarly, HViT exhibits consistent but slightly lower performance across most classes, particularly for Road (99.0415%)
+and Tennis Court (100%). From an aggregate perspective, DiffFormer outperforms all competing models, achieving the highest OA (99.6229%), AA (99.4594%), and κ (99.5923%). The
+second-best model, WaveFormer, delivers comparable performance but falls slightly short in terms of AA (99.1512%) and
+OA (99.3878%), underscoring the improvements introduced by
+DiffFormer. In terms of computational efficiency, DiffFormer
+exhibits a balanced tradeoff between accuracy and time, with a
+processing time of 219.45 s. While WaveFormer is marginally
+faster (146.79 s), its slightly lower performance highlights the
+significance of the proposed enhancements in DiffFormer. Notably, Former requires the longest processing time (6392.95 s),
+making it impractical for large-scale applications.
+The results in Table VIII comprehensively evaluate and compare the performance of various models on the SA dataset. From
+Table VIII, the proposed model, DiffFormer, outperforms other
+models in most aggregate metrics, achieving the highest OA
+(99.8152%), AA (99.8546%), and κ (99.7942%). These results
+
+10426
+
+IEEE JOURNAL OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE SENSING, VOL. 18, 2025
+
+TABLE VIII
+PERFORMANCE COMPARISON ON THE SA DATASET ACROSS CLASS-WISE
+ACCURACIES, AGGREGATE METRICS, AND COMPUTATIONAL TIME
+
+TABLE IX
+PERFORMANCE COMPARISON ON THE PU DATASET ACROSS CLASS-WISE
+ACCURACIES, AGGREGATE METRICS, AND COMPUTATIONAL TIME
+
+Fig. 7. Classification maps for the PU dataset, highlighting spatial variability
+and class-specific performance.
+
+Fig. 6. Classification maps for the SA dataset, highlighting spatial variability
+and class-specific performance.
+
+indicate superior classification reliability. Classwise accuracies
+reveal that DiffFormer maintains consistent performance across
+classes, with perfect scores for challenging categories such as
+“Broccoli 1,” “Broccoli 2,” and “Stubble,” outperforming models such as MHMamba, which struggles particularly in “Vinyard
+Untrained” with a significantly lower accuracy (73.6378%). Furthermore, DiffFormer demonstrates competitive computational
+efficiency with a runtime of 767.71 s, which, while not the
+fastest, remains practical compared to WaveMamba’s extensive
+runtime of 8526.14 s.
+Fig. 6 provides a qualitative comparison of classification
+maps. It highlights the spatial consistency and accuracy of DiffFormer, especially in regions with complex class distributions,
+such as “Fallow Rough” and “Vinyard Vertical.” Misclassifications, evident in other models such as PyFormer and MHMamba,
+are significantly reduced in DiffFormer, leading to smoother and
+more accurate spatial patterns. In addition, the high fidelity of the
+maps corroborates the quantitative superiority of DiffFormer.
+
+Table IX presents a comprehensive comparison of classification performance on the PU dataset. Notably, DiffFormer
+demonstrates superior OA of 99.4623%, κ of 99.2872%, and AA
+of 99.1498%, consistently outperforming existing approaches.
+In particular, DiffFormer achieves SOTA results for challenging
+classes such as Asphalt (99.4972%), Bitumen (99.7493%), and
+Shadows (99.6478%). These improvements suggest its effectiveness in capturing spatial and spectral correlations. In contrast, AGCN also achieves high performance, with the highest AA of 99.5006%, but marginally lower OA and κ . The
+Former, PyFormer, and WaveFormer exhibit competitive results across most metrics but fall behind DiffFormer, especially in the Bare Soil and Bitumen classes. WaveMamba and
+MHMamba, while innovative, exhibit suboptimal performance,
+particularly in classes such as Bricks and Gravel, indicating
+potential limitations in capturing finer spatial features. From a
+computational perspective, DiffFormer balances accuracy with
+efficiency, achieving competitive inference time (601.86 s) relative to Former (383.60 s) and WaveFormer (383.09 s), while significantly outperforming models such as PyFormer (2840.00 s)
+and WaveMamba (3952.37 s).
+The classification maps in Fig. 7 visually highlight the spatial
+distribution of predicted labels for each model. DiffFormer
+showcases the superior performance of class boundaries and
+
+AHMAD et al.: DiffFORMER: A DIFFERENTIAL SPATIAL-SPECTRAL TRANSFORMER FOR HYPERSPECTRAL IMAGE CLASSIFICATION
+
+reduction in misclassified pixels, especially in heterogeneous
+regions such as Meadows and Bare Soil. In comparison, AGCN
+and WaveFormer exhibit satisfactory classification but suffer
+from subtle boundary inconsistencies. Models such as MHMamba and WaveMamba display noticeable artifacts and reduced precision in high-variability regions, consistent with their
+lower quantitative performance. Conversely, Former and PyFormer demonstrate balanced accuracy across large homogeneous classes but struggle to preserve spatial details in smaller
+regions such as Bitumen and Bricks. The visualization further
+validates the effectiveness of DiffFormer in handling spectralspatial variability, ensuring high classification accuracy across
+diverse land cover types.
+VI. CONCLUSION
+This article introduced DiffFormer, a novel differential SST
+designed to address the challenges of spectral redundancy and
+spatial discontinuity in HSIC. The core innovation of DiffFormer
+lies in its DMHSA mechanism, which enhances hyperspectral
+feature representation by refining spectral-spatial dependencies
+through differential attention scoring. In addition, the integration of the SwiGLU activation function and class token-based
+aggregation improves feature discrimination while maintaining
+computational efficiency. The proposed patch-based spectralspatial tokenization strategy ensures scalable feature extraction by optimizing input dimensionality without compromising
+spectral fidelity. Extensive experiments on benchmark hyperspectral datasets validate the superiority of DiffFormer over
+SOTA models in both classification accuracy and computational efficiency. Empirical results demonstrate that DiffFormer
+effectively balances spectral feature expressivity and model
+complexity, achieving competitive performance with a reduced
+computational footprint. The ablation studies further highlight
+the impact of DMHSA, SwiGLU, and spectral-spatial tokenization in improving generalization and robustness across different
+HSI scenarios.
+Despite these advancements, several future research
+directions remain open. One promising avenue is the
+development of adaptive or hierarchical tokenization strategies
+that dynamically adjust the granularity of spectral-spatial feature
+extraction based on scene complexity, reducing redundant
+computations while preserving fine-grained spectral details.
+In addition, optimizing transformer architectures for energy
+efficiency and hardware acceleration could enable real-time
+HSIC on resource-constrained platforms such as UAVs,
+CubeSats, and edge devices. Another important direction is the
+integration of self-supervised or contrastive learning paradigms
+to enhance feature robustness, particularly in scenarios where
+labeled hyperspectral data is scarce. Leveraging spectral
+similarity constraints or contrastive embeddings could improve
+generalization while reducing dependency on extensive manual
+annotations. Furthermore, exploring graph-based or attention
+fusion techniques could enhance spatial-spectral reasoning
+by explicitly modeling interpixel relationships, improving
+classification accuracy in complex land cover or remote sensing
+applications. Finally, incorporating uncertainty quantification
+
+10427
+
+techniques within DiffFormer could provide better interpretability and reliability in decision-making, ensuring its applicability
+to critical remote sensing tasks such as disaster monitoring,
+precision agriculture, and mineral exploration.
+REFERENCES
+[1] S. Faisal, M. P.-L. Ooi, S. K. Abeysekera, Y.-C. Kuang, and D. Fletcher,
+“Roadmap for measurement and applications: Uncertainty quantification
+and visualization for optimal decision-making in hyperspectral imagingbased precision agriculture,” IEEE Instrum. Meas. Mag., vol. 28, no. 1,
+pp. 23–32, Feb. 2025.
+[2] Y. Zhang, L. Liu, and X. Yang, “Hyperspectral image classification using spectral-spatial dual random fields with Gaussian and Markov processes,” IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 18,
+pp. 4199–4212, 2025.
+[3] R. Rajabi, A. Zehtabian, K. D. Singh, A. Tabatabaeenejad, P. Ghamisi, and
+S. Homayouni, “Hyperspectral imaging in environmental monitoring and
+analysis,” Front. Environ. Sci., vol. 11, 2024, Art. no. 1353447.
+[4] J. Chen, J. Li, and P. Gamba, “Adaptive multi-task autoencoder-based
+hyperspectral unmixing exploiting auxiliary data via graph associations,”
+IEEE Trans. Geosci. Remote Sens., vol. 63, 2025, Art. no. 5509213.
+[5] Y. Feng, X. Yi, S. Wang, J. Yue, S. Xia, and L. Fang, “HyperEDL:
+Spectral-spatial evidence deep learning for cross-scene hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens., vol. 63, 2025,
+Art. no. 5508316.
+[6] M. H. Khan et al., “Hyperspectral imaging-based unsupervised adulterated
+red chili content transformation for classification: Identification of red chili
+adulterants,” Neural Comput. Appl., vol. 33, no. 21, pp. 14507–14521,
+2021.
+[7] M. H. Khan, Z. Saleem, M. Ahmad, A. Sohaib, H. Ayaz, and M. Mazzara,
+“Hyperspectral imaging for color adulteration detection in red chili,” Appl.
+Sci., vol. 10, no. 17, 2020, Art. no. 5955.
+[8] Z. Saleem, M. H. Khan, M. Ahmad, A. Sohaib, H. Ayaz, and M. Mazzara,
+“Prediction of microbial spoilage and shelf-life of bakery products through
+hyperspectral imaging,” IEEE Access, vol. 8, pp. 176986–176996, 2020.
+[9] M. H. F. Butt, H. Ayaz, M. Ahmad, J. P. Li, and R. Kuleev, “A fast
+and compact hybrid CNN for hyperspectral imaging-based bloodstain
+classification,” in Proc. 2022 IEEE Congr. Evol. Comput. IEEE, 2022,
+pp. 1–8.
+[10] M. Zulfiqar, M. Ahmad, A. Sohaib, M. Mazzara, and S. Distefano, “Hyperspectral imaging for bloodstain identification,” Sensors, vol. 21, no. 9,
+2021, Art. no. 3045.
+[11] H. Ayaz, M. Ahmad, M. Mazzara, and A. Sohaib, “Hyperspectral imaging
+for minced meat classification using nonlinear deep features,” Appl. Sci.,
+vol. 10, no. 21, 2020, Art. no. 7783.
+[12] H. Ayaz et al., “Myoglobin-based classification of minced meat using
+hyperspectral imaging,” Appl. Sci., vol. 10, no. 19, 2020, Art. no. 6862.
+[13] M. Ahmad et al., “Hyperspectral image classification—Traditional to deep
+models: A survey for future prospects,” IEEE J. Sel. Topics Appl. Earth
+Observ. Remote Sens., vol. 15, pp. 968–999, 2022.
+[14] P. Addabbo, N. Fiscante, G. Giunta, D. Orlando, G. Ricci, and S. L. Ullo,
+“Multiple sub-pixel target detection for hyperspectral imaging systems,”
+IEEE Trans. Signal Process., vol. 71, pp. 1599–1611, 2023.
+[15] M. Ahmad et al., “Spatial-spectral morphological mamba for hyperspectral
+image classification,” Neurocomputing, vol. 636, 2025, Art. no. 129995.
+[Online]. Available: https://www.sciencedirect.com/science/article/pii/
+S0925231225006678
+[16] J. Feng et al., “S4dl: Shift-sensitive spatial-spectral disentangling learning for hyperspectral image unsupervised domain adaptation,” 2024,
+arXiv:2408.15263.
+[17] Y. Ding et al., “Slcgc: A lightweight self-supervised low-pass contrastive graph clustering network for hyperspectral images,” 2025,
+arXiv:2502.03497.
+[18] Y. Ding et al., “Self-supervised locality preserving low-pass graph convolutional embedding for large-scale hyperspectral image clustering,” IEEE
+Trans. Geosci. Remote Sens., vol. 60, 2022, Art. no. 5536016.
+[19] Y. Ding et al., “Adaptive homophily clustering: Structure homophily
+graph learning with adaptive filter for hyperspectral image,” 2025,
+arXiv:2501.01595.
+[20] Z. Zhao, X. Xu, S. Li, and A. Plaza, “Hyperspectral image classification
+using groupwise separable convolutional vision transformer network,”
+IEEE Trans. Geosci. Remote Sens., vol. 62, 2024, Art. no. 5511817.
+
+10428
+
+IEEE JOURNAL OF SELECTED TOPICS IN APPLIED EARTH OBSERVATIONS AND REMOTE SENSING, VOL. 18, 2025
+
+[21] S. Cheng, R. Chan, and A. Du, “MS2I2Former: Multiscale spatial–spectral
+information interactive transformer for hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens., vol. 62, 2024, Art. no. 5532919.
+[22] F. Xu, S. Mei, G. Zhang, N. Wang, and Q. Du, “Bridging CNN and
+transformer with cross-attention fusion network for hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens., vol. 62, 2024,
+Art. no. 5522214.
+[23] S. Jia, Y. Wang, S. Jiang, and R. He, “A center-masked transformer for
+hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens.,
+vol. 62, 2024, Art. no. 5510416.
+[24] T. Arshad and J. Zhang, “Hierarchical attention transformer for hyperspectral image classification,” IEEE Geosci. Remote Sens. Lett., vol. 21, 2024,
+Art. no. 5504605.
+[25] M. Jiang et al., “GraphGST: Graph generative structure-aware transformer
+for hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens.,
+vol. 62, 2024, Art. no. 5504016.
+[26] L. Huang, Y. Chen, and X. He, “Foundation model-based spectral–spatial
+transformer for hyperspectral image classification,” IEEE Trans. Geosci.
+Remote Sens., vol. 62, 2024, Art. no. 5529825.
+[27] Z. Shu, Y. Wang, and Z. Yu, “Dual attention transformer network for
+hyperspectral image classification,” Eng. Appl. Artif. Intell., vol. 127,
+2024, Art. no. 107351. [Online]. Available: https://www.sciencedirect.
+com/science/article/pii/S095219762301535X
+[28] Z. Zhong, Y. Li, L. Ma, J. Li, and W.-S. Zheng, “‘Spectral–spatial transformer network for hyperspectral image classification: A factorized architecture search framework,” IEEE Trans. Geosci. Remote Sens., vol. 60,
+2022, Art. no. 5514715.
+[29] X. Yang, W. Cao, Y. Lu, and Y. Zhou, “QTN: Quaternion transformer
+network for hyperspectral image classification,” IEEE Trans. Circuits Syst.
+Video Technol., vol. 33, no. 12, pp. 7370–7384, Dec. 2023.
+[30] X. Zhang, Y. Su, L. Gao, L. Bruzzone, X. Gu, and Q. Tian, “A lightweight
+transformer network for hyperspectral image classification,” IEEE Trans.
+Geosci. Remote Sens., vol. 61, 2023, Art. no. 5517617.
+[31] X. Yang, W. Cao, Y. Lu, and Y. Zhou, “Hyperspectral image transformer
+classification networks,” IEEE Trans. Geosci. Remote Sens., vol. 60, 2022,
+Art. no. 5528715.
+[32] H. Yu, Z. Xu, K. Zheng, D. Hong, H. Yang, and M. Song, “MSTNet:
+A multilevel spectral–spatial transformer network for hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens., vol. 60, 2022,
+Art. no. 5532513.
+[33] B. Zhang, Y. Chen, Y. Rong, S. Xiong, and X. Lu, “MATNet: A combining multi-attention and transformer network for hyperspectral image classification,” IEEE Trans. Geosci. Remote Sens., vol. 61, 2023,
+Art. no. 5506015.
+[34] T. Ye et al., “Differential transformer,” 2024, arXiv:2410.05258.
+[35] M. Ye, J. Chen, F. Xiong, and Y. Qian, “Adaptive graph modeling with selftraining for heterogeneous cross-scene hyperspectral image classification,”
+IEEE Trans. Geosci. Remote Sens., vol. 62, 2024, Art. no. 5503815.
+
+[36] M. Ahmad, M. Usama, M. Mazzara, S. Distefano, H. A. Altuwaijri,
+and S. L. Ullo, “Fusing transformers in a tuning fork structure for hyperspectral image classification across disjoint samples,” IEEE J. Sel.
+Topics Appl. Earth Observ. Remote Sens., vol. 17, pp. 18167–18181,
+2024.
+[37] J. Fang, J. Yang, A. Khader, and L. Xiao, “MIMO-SST: Multi-input
+multi-output spatial-spectral transformer for hyperspectral and multispectral image fusion,” IEEE Trans. Geosci. Remote Sens., vol. 62, 2024,
+Art. no. 5510020.
+[38] W. Huang, Y. Deng, S. Hui, Y. Wu, S. Zhou, and J. Wang, “Sparse selfattention transformer for image inpainting,” Pattern Recognit., vol. 145,
+2024, Art. no. 109897.
+[39] M. Ahmad, M. Usama, A. M. Khan, S. Distefano, H. A. Altuwaijri, and M.
+Mazzara, “Spatial–spectral transformer with conditional position encoding
+for hyperspectral image classification,” IEEE Geosci. Remote Sens. Lett.,
+vol. 21, 2024, Art. no. 5508205.
+[40] Y. Sun, X. Zhi, S. Jiang, G. Fan, X. Yan, and W. Zhang, “Image fusion for
+the novelty rotating synthetic aperture system based on vision transformer,”
+Inf. Fusion, vol. 104, 2024, Art. no. 102163.
+[41] M. Ahmad, U. Ghous, M. Usama, and M. Mazzara, “WaveFormer:
+Spectral–spatial wavelet transformer for hyperspectral image classification,” IEEE Geosci. Remote Sens. Lett., vol. 21, 2024, Art. no. 5502405.
+[42] T. Kim, J. Kim, H. Oh, and J. Kang, “Deep transformer based video
+inpainting using fast Fourier tokenization,” IEEE Access, vol. 12,
+pp. 21723–21736, 2024.
+[43] Y. Shi, J. Xia, M. Zhou, and Z. Cao, “A dual-feature-based adaptive shared
+transformer network for image captioning,” IEEE Trans. Instrum. Meas.,
+vol. 73, 2024, Art. no. 5009613.
+[44] M. Ahmad, M. Usama, M. Mazzara, and S. Distefano, “WaveMamba:
+Spatial-spectral wavelet mamba for hyperspectral image classification,”
+IEEE Geosci. Remote Sens. Lett., vol. 22, 2025, Art. no. 5500505.
+[45] Y. Zhong et al., “Mini-UAV-borne hyperspectral remote sensing: From
+observation and processing to applications,” IEEE Geosci. Remote Sens.
+Mag., vol. 6, no. 4, pp. 46–62, Dec. 2018.
+[46] A. Jamali, S. K. Roy, D. Hong, P. M. Atkinson, and P. Ghamisi, “Attention
+graph convolutional network for disjoint hyperspectral image classification,” IEEE Geosci. Remote Sens. Lett., vol. 21, 2024, Art. no. 5503005.
+[47] M. Ahmad, M. H. F. Butt, M. Mazzara, S. Distefano, A. M. Khan,
+and H. A. Altuwaijri, “Pyramid hierarchical spatial-spectral transformer for hyperspectral image classification,” IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 17, pp. 17681–17689,
+2024.
+[48] J. Z. T. Arshad and I. Ullah, “A hybrid convolution transformer for
+hyperspectral image classification,” Eur. J. Remote Sens., vol. 57, no. 1,
+2024, Art. no. 2330979.
+[49] M. Ahmad et al., “Multi-head spatial-spectral Mamba for hyperspectral
+image classification,” Remote Sens. Lett., vol. 16, no. 4, pp. 15–29, 2025,
+doi: 10.1080/2150704X.2025.2461330.
+
+
