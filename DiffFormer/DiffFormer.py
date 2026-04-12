@@ -36,8 +36,8 @@ BATCH_SIZE = 32
 
 # ── Paths (same structure as your existing notebook) ─────────
 PROCESSED_ROOT = "/home/23dcs505/datasets/IP"
-MODEL_DIR = "/home/Stark/CLIP_HSI/DiffFormer/best_models"
-RESULTS_DIR = "/home/Stark/CLIP_HSI/DiffFormer/results"
+MODEL_DIR = "/home/23dcs505/best_models"
+RESULTS_DIR = "/home/23dcs505/results"
 PLOTS_DIR = os.path.join(RESULTS_DIR, "plots")
 
 for d in [MODEL_DIR, RESULTS_DIR, PLOTS_DIR]:
