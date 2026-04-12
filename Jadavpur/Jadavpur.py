@@ -50,10 +50,10 @@ LOGIT_SCALE_INIT = math.log(1.0 / 0.07)  # CLIP-style init (≈2.66)
 
 # Training — from paper §3 (IP-specific)
 BATCH_SIZE = 32
-EPOCHS = 50
+EPOCHS = 100
 LR = 1e-3
 WEIGHT_DECAY = 1e-4
-PATIENCE = 15
+PATIENCE = 25
 SEED = 42
 
 CLASS_NAMES = [
