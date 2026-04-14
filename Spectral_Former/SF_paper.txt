@@ -1,0 +1,858 @@
+IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022                                                                                      5518615
+
+
+
+
+     SpectralFormer: Rethinking Hyperspectral Image
+             Classification With Transformers
+                Danfeng Hong , Senior Member, IEEE, Zhu Han , Student Member, IEEE, Jing Yao ,
+         Lianru Gao , Senior Member, IEEE, Bing Zhang , Fellow, IEEE, Antonio Plaza , Fellow, IEEE,
+                                                   and Jocelyn Chanussot , Fellow, IEEE
+
+
+
+   Abstract— Hyperspectral (HS) images are characterized by                         Index Terms— Convolutional neural networks, deep learn-
+approximately contiguous spectral information, enabling the fine                 ing, hyperspectral (HS) image classification, local contex-
+identification of materials by capturing subtle spectral discrep-                tual information, remote sensing, sequence data, skip fusion,
+ancies. Due to their excellent locally contextual modeling ability,              transformer.
+convolutional neural networks (CNNs) have been proven to be a
+powerful feature extractor in HS image classification. However,
+CNNs fail to mine and represent the sequence attributes of                                                  I. I NTRODUCTION
+spectral signatures well due to the limitations of their inherent
+network backbone. To solve this issue, we rethink HS image
+classification from a sequential perspective with transformers
+                                                                                 I  N HYPERSPECTRAL (HS) imaging, hundreds of (nar-
+                                                                                    row) wavelength bands are collected at each pixel across
+                                                                                 the complete electromagnetic spectrum, which enables the
+and propose a novel backbone network called SpectralFormer.
+Beyond bandwise representations in classic transformers, Spec-                   identification or detection of materials at a fine-grained
+tralFormer is capable of learning spectrally local sequence                      level, particularly for those that have extremely simi-
+information from neighboring bands of HS images, yielding                        lar spectral signatures in visual cues (e.g., RGB) [1].
+groupwise spectral embeddings. More significantly, to reduce                     This provides great potential in a variety of high-level
+the possibility of losing valuable information in the layerwise
+propagation process, we devise a cross-layer skip connection                     Earth observation (EO) missions, such as accurate land
+to convey memory-like components from shallow to deep lay-                       cover mapping, precision agriculture, target/object detec-
+ers by adaptively learning to fuse “soft” residuals across lay-                  tion, urban planning, tree species classification, and mineral
+ers. It is worth noting that the proposed SpectralFormer is                      exploration.
+a highly flexible backbone network, which can be applica-                           A general sequential process in a HS image classification
+ble to both pixelwise and patchwise inputs. We evaluate the
+classification performance of the proposed SpectralFormer on                     system consists of image restoration (e.g., denoising and miss-
+three HS datasets by conducting extensive experiments, show-                     ing data recovery) [2]–[5], dimensionality reduction [6], [7],
+ing the superiority over classic transformers and achieving                      spectral unmixing [8]–[12], and feature extraction [13]–[16].
+a significant improvement in comparison with state-of-the-art                    Among them, feature extraction is a crucial step in HS
+backbone networks. The codes of this work will be available                      image classification, which has received increasing attention
+at https://github.com/danfenghong/IEEE_TGRS_SpectralFormer
+for the sake of reproducibility.                                                 from researchers. Over the past decade, a large number of
+                                                                                 advanced handcrafted and subspace learning-based feature
+                                                                                 extraction approaches have been proposed for HS image
+   Manuscript received July 5, 2021; revised September 19, 2021 and              classification [17]. These methods are capable of performing
+November 18, 2021; accepted November 22, 2021. Date of publication
+November 25, 2021; date of current version February 21, 2022. This               well in small-sample classification problems. However, they
+work was supported by the National Key R&D Program of China (Grant               tend to meet the performance bottleneck when the training
+No. 2021YFB3900502), the National Natural Science Foundation of China            size gradually increases, and the training set becomes more
+under Grant 42030111, and by the MIAI@Grenoble Alpes (ANR-19-P3IA-
+0003) and the AXA Research Fund. (Corresponding author: Lianru Gao.)             complex. The possible reason is due to the limited data fitting
+   Danfeng Hong, Jing Yao, and Lianru Gao are with the Key Laboratory            and representation ability of these traditional methods. Inspired
+of Digital Earth Science, Aerospace Information Research Institute, Chinese      by the great success of deep learning (DL), which is capable
+Academy of Sciences, Beijing 100094, China (e-mail: hongdf@aircas.ac.cn;
+yaojing@aircas.ac.cn; gaolr@aircas.ac.cn).                                       of finding out connotative, intrinsic, and potentially valuable
+   Zhu Han and Bing Zhang are with the Key Laboratory of Digital Earth           knowledge from the vast amounts of pluralistic data [18],
+Science, Aerospace Information Research Institute, Chinese Academy of            enormous efforts have been made in designing and adding
+Sciences, Beijing 100094, China, and also with the College of Resources and
+Environment, University of Chinese Academy of Sciences, Beijing 100049,          advanced modules in networks to extract more diagnostic fea-
+China (e-mail: hanzhu19@mails.ucas.ac.cn; zb@radi.ac.cn).                        tures from remote sensing data. For example, Zhao et al. [19]
+   Antonio Plaza is with the Hyperspectral Computing Laboratory, Department      developed a joint classification framework using HS and light
+of Technology of Computers and Communications, Escuela Politécnica,
+University of Extremadura, 10003 Cáceres, Spain (e-mail: aplaza@unex.es).        detection and ranging (LiDAR) data, which has been shown
+   Jocelyn Chanussot is with the Univ. Grenoble Alpes, CNRS, Grenoble INP,       to be excellent at extracting features from multisource RS
+GIPSA-Lab, 38000 Grenoble, France, and also with the Aerospace Informa-          data. Zhang et al. [20] designed an extraordinary patch-to-
+tion Research Institute, Chinese Academy of Sciences, Beijing 100094, China
+(e-mail: jocelyn@hi.is).                                                         patch convolutional neural network (CNN), which has yielded
+   Digital Object Identifier 10.1109/TGRS.2021.3130716                           significantly better results than other techniques.
+                      1558-0644 © 2021 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.
+                                    See https://www.ieee.org/publications/rights/index.html for more information.
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                        IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+
+Fig. 1. Overview of currently well-recognized backbone networks for the HS image classification task, such as AEs [21], CNNs [22], RNNs [23], GANs [24],
+CapsNet [25], GCNs [26], and transformers [27].
+
+
+   In recent years, many well-recognized backbone networks                             especially when the to-be-classified categories are of a
+have been widely and successfully applied in the HS image                              great variety and extremely similar in spectral signatures.
+classification task [28], such as autoencoders (AEs), CNNs,                            On the other hand, CNNs are overly concerned with
+recurrent neural networks (RNNs), generative adversarial                               spatial content information, which spectrally distorts
+networks (GANs), capsule networks (CapsNet), and graph                                 sequential information in the learned features. This,
+convolutional networks (GCNs). Chen et al. [21] stacked mul-                           to great extent, enables more difficulties of mining
+tiple autoencoder networks to extract deep feature repre-                              diagnostic spectral attributes.
+sentations from dimension-reduced HS images—generated                               2) Unlike CNNs, RNNs are designed for sequence data,
+by the principal component analysis (PCA) [29]—with                                    which accumulatively learns spectral features band by
+the application to HS image classification. Chen et al. [22]                           band from HS images in an orderly fashion. Such a
+employed CNNs instead of stacked AEs to semantically                                   mode extremely depends on the order of spectral bands
+extract spatial–spectral features by considering local contex-                         and tends to generate gradient vanishing, thereby being
+tual information of HS images, achieving higher classification                         hard to learn long-term dependencies [30]. This might
+accuracies. Hang et al. [23] designed a cascaded RNN for                               further lead to the difficulty of capturing spectrally
+HS image classification by taking advantage of RNNs that                               salient changes in time series. More importantly, there
+can model the sequentiality to represent the relations of                              are usually tons of HS samples (or pixels) available in
+neighboring spectral bands effectively. In [24], GANs were                             real HS image scenes, yet RNNs fail to train the models
+improved, making them applicable to the HS image classifi-                             in parallel, limiting the classification performance in
+cation task, with the input of three PCA components and ran-                           practical applications.
+dom noises. Paoletti et al. [25] extended a CNN-based model                         3) For other backbone networks, i.e., GANs, CapsNet, and
+by defining a novel spatial–spectral capsule unit, yielding a                          GCNs, despite their respective advantages in learning
+high-performance classification framework of HS images and,                            spectral representations (e.g., robustness, equivalence,
+meanwhile, reducing the complexity of the network design.                              and long-range relevance between samples), one thing
+Hong et al. [26] made a comprehensive comparison between                               in common is that almost all of them could be inherently
+CNNs and GCNs on the classification of HS images both                                  incompetent for modeling sequential information effec-
+qualitatively and quantitatively, and proposed a minibatch                             tively. That is, the utilization of spectral information is
+GCN (miniGCNs), providing a feasible solution for addressing                           insufficient (being a critical bottleneck in fine land cover
+the issue of large graphs in GCNs, for state-of-the-art HS                             classification or mapping using HS data).
+image classification.
+                                                                                    Being aimed at the aforementioned limitations, we rethink
+   Although these backbone networks and their variants have
+                                                                                 the HS image classification process from a sequence data
+been able to obtain promising classification results, their ability
+                                                                                 perspective with current state-of-the-art transformers [27].
+in characterizing spectral series information (particularly in
+                                                                                 Totally different from CNNs and RNNs, transformers are (at
+capturing subtle spectral discrepancies along spectral dimen-
+                                                                                 present) one of the cutting-edge backbone networks due to
+sion) remains inadequate. Fig. 1 gives an overview illustration
+                                                                                 the use of self-attention techniques, which are well-designed
+of these state-of-the-art backbone networks in the HS image
+                                                                                 for the sake of processing and analyzing sequential (or time
+classification task. The specific limitations can be roughly
+                                                                                 series) data more effectively. This will provide a good fit for
+summarized as follows.
+                                                                                 HS data processing and analysis, e.g., HS image classification.
+   1) As the mainstream backbone architecture, CNNs have
+                                                                                 It is well known that the self-attention block in transformers
+       shown their powerful ability in extracting spatially
+                                                                                 enables to capture globally sequential information by the
+       structural information and locally contextual infor-
+                                                                                 means of positional encoding [31]. However, there also exist
+       mation from HS images. Nevertheless, on the one
+                                                                                 some drawbacks in transformers that hinder their performance
+       hand, CNNs can hardly be capable of capturing the
+                                                                                 to be further improved. For example,
+       sequence attributes well, particularly middle- and long-
+       term dependencies. This unavoidably meets the perfor-                        1) although transformers perform outstandingly in solv-
+       mance bottleneck in the HS image classification task,                           ing the problem of long-term dependencies of spectral
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                            5518615
+
+
+
+      signatures, they lose the power of capturing locally con-
+      textual or semantic characteristics (cf. CNNs or RNNs);
+   2) as mentioned in [32], the skip connection (SC) plays
+      a crucial role in transformers. This might be explained
+      well by either using “residuals” to make the gradients
+      better propagated or enhancing “memories” to reduce
+      the forgetting or loss of key information. However,
+      unfortunately, the simple additive SC operation only
+      occurs within each transformer block, weakening the
+      connectivity across different layers or blocks.
+   For these reasons, we aim to develop a novel
+transformer-based network architecture, SpectralFormer for
+short, enabling the high-performance HS image classification
+task. SpectralFormer provides point-to-point solutions
+corresponding to the above two drawbacks. More specifically,                     Fig. 2. Illustration of the attention mechanism in transformers. (a) Self-
+                                                                                 attention module. (b) Multihead attention.
+SpectralFormer is capable of learning locally spectral
+representations from multiple neighboring bands rather than
+a single band (in original transformers) in each encoded                         with two well-designed modules, i.e., GSE and CAF, making
+position, e.g., groupwise versus bandwise embeddings.                            it more applicable to the HS image classification task. Finally,
+Furthermore, a cross-layer SC is designed in SpectralFormer                      we also investigate the ability that the proposed Spectral-
+to progressively convey memory-like components from                              Former models the spatially contextual information with the
+shallow to deep layers by adaptively learning to fuse their                      input of image patches.
+“soft” residuals. The main contributions of this paper can be
+summarized as follows.                                                           A. Brief Review of Transformers
+   1) We revisit the HS image classification problem
+      from a sequential perspective and propose a new                               As is known to all, transformers [27] have cut a conspic-
+      transformer-based backbone network, called Spectral-                       uous figure in processing sequence-to-sequence problems in
+      Former, in order to substitute for CNN- or RNN-based                       natural language processing (NLP), e.g., machine translation.
+      architectures. To the best of our knowledge, this is the                   Since they abandon the sequence dependence characteristic in
+      first time that transformers (without any preprocessing                    RNNs and alternatively introduce a brand-new self-attention
+      operation, e.g., feature extraction using convolution and                  mechanism, this enables the global information (long-term
+      recurrent units or other transformation techniques) are                    dependencies) capture for the units at any position, which
+      purely applied to the HS image classification task.                        greatly promotes the development of time-series data process-
+   2) We devise two simple but effective modules in Spec-                        ing models. Even not only limiting in NLP, image processing
+      tralFormer, i.e., groupwise spectral embedding (GSE)                       and computer vision fields have also begun exploring the
+      and cross-layer adaptive fusion (CAF), to learn                            transformer architecture. Very recently, the vision transformer
+      locally detailed spectral representations and convey                       (ViT) [33] seems to have achieved or approached CNN-based
+      memory-like components from shallow to deep layers,                        state-of-the-art effects on various vision domain tasks, pro-
+      respectively.                                                              viding new insight, inspiration, and creative space on vision-
+   3) We qualitatively and quantitatively evaluate the classifi-                 related tasks.
+      cation performance of the proposed SpectralFormer on                          The success of transformers, to a great extent, depends on
+      three representative HS datasets, i.e., Indian Pines, Pavia                the use of multihead attention, where multiple self-attention
+      University, and the University of Houston, with exten-                     (SA) [34] layers are stacked and integrated. As the name
+      sive ablation studies. The experimental results demon-                     suggests, the SA mechanism is better at capturing the internal
+      strate a significant superiority over classic transformers                 correlation of data or features, thereby reducing the depen-
+      (with an increase of approximately 10% OA) and other                       dence on external information. Fig. 2(a) illustrates the process
+      state-of-the-art backbone networks (at least 2% OA                         of the SA module in transformers. More specifically, the SA
+      improvement).                                                              layer can be performed according to the following six steps.
+                                                                                    Step 1: Input the sequence data x with the length of m,
+   The remaining of the paper is organized as follows.
+                                                                                 where x i , i = 1, . . . , m, denotes either a scalar or a vector.
+Section II first reviews classic transformers-related litera-
+                                                                                    Step 2: The feature embedding, denoted as ai , is obtained
+ture and then details the proposed SpectralFormer with two
+                                                                                 on each scalar or vector x i by a shared matrix W.
+well-designed modules for HS image classification. Extensive
+                                                                                    Step 3: Each embedding multiplies by three different trans-
+experiments are conducted with ablation studies and discus-
+                                                                                 formation matrices W q , W k , and W v , respectively, yielding
+sions in Section III. Section IV draws comprehensive conclu-
+                                                                                 three vectors, i.e., query (Q = [q 1 , . . . , q m ]), key (K =
+sions and a brief outlook on future possible research directions.
+                                                                                 [k1 , . . . , k m ]), and value (V = [v 1 , . . . , v m ]).
+                       II. S PECTRAL F ORMER                                        Step 4: Compute the attention score s between each Q
+   In this section, we start to review some preliminaries of clas-               vector and each K vector in the form of inner product, e.g.,
+sic transformers. On this basis, we propose the SpectralFormer                   q i · k j , and to stabilize the gradients, the scaled score is
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                          IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+
+Fig. 3. Overview illustration of the proposed SpectralFormer network for the HS image classification task. SpectralFormer consists of two well-designed
+modules, i.e., GSE and CAF, making it (the transformer-based backbone) better applicable to HS images.
+                                                         √
+obtained by normalization, i.e., si, j = q i · k j / d, where d                   SpectralFormer is not only applied to the pixelwise HS image
+is the dimension of q i or k j .                                                  classification but also extensible to the spatial–spectral classi-
+    Step 5: The softmax activation function is performed on                       fication with the batchwise input, yielding the spatial–spectral
+s; wethen have, in the position-1, for instance, ŝ1,i =                         SpectralFormer version. Fig. 3 illustrates an overview of the
+e s1,i / j e s1, j .                                                              proposed SpectralFormer in the HS image classification task,
+    Step 6: Generate
+                          attention representations z = [z 1 , . . . , z m ],    while Table I details the definition of notations used in the
+e.g., z 1 = i ŝ 1,i v i .                                                        proposed SpectralFormer.
+    To sum up, the SA layer can be integrally formulated as
+follows:
+                                                                                C. Groupwise Spectral Embedding
+                                                    QK
+         z = Attention(Q, K , V ) = softmax √               V.            (1)
+                                                       d                             Unlike the discrete sequentiality in classic transformers or
+With (1), multiple different SA layers can be assembled to be                     ViT (e.g., image patches), hundreds or thousands of spectral
+a multihead attention, as shown in Fig. 2(b). In detail, we first                 channels in HS images are densely sampled from the electro-
+obtain multiple attention representations (e.g., h = 8), denoted                  magnetic spectrum at a subtle interval (e.g., 10 nm), yielding
+as z h , h = 1, . . . , 8, and concatenate them to be a larger feature            approximately continuous spectral signatures. The spectral
+matrix. A linear transformation matrix (e.g., W o ) is finally                    information in different positions reflects different absorption
+used to make the feature dimension identical to the input data.                   characteristics corresponding to different wavelengths. This,
+    It should be noted, however, that there is no position                        to a great extent, shows the physical properties of the current
+information in the SA layer, which fails to make use of                           material. Capturing locally detailed absorption (or changes) of
+sequence information. For this reason, the position information                   such spectral signatures is a crucial factor to accurately and
+is encoded into the feature embedding. The embedding with                         finely classify the materials lying in the HS scene. For this
+time signal can be, thus, formulated as ai +ei , where ei denotes                 purpose, we propose to learn groupwise spectral embeddings,
+a unique positional vector given manually.                                        i.e., GSE, instead of bandwise input and representations.
+                                                                                  Given a spectral signature (a pixel in the HS image) x =
+B. Overview of SpectralFormer                                                     [x 1 , x 2 , . . . , x m ] ∈ R1×m , the feature embeddings a obtained
+                                                                                  by classic transformers are formulated by
+   We aim at developing a novel and generic ViT-based base-
+line network (i.e., SpectralFormer) with a focus on the spectro-                                                  A = wx                                   (2)
+metric characteristics, making it well-applicable to the highly
+accurate and fine classification of HS images. To this end,                       where w ∈ Rd×1 denotes the linear transformation that is
+we devise two key modules, i.e., GSE and CAF, and integrate                       equivalently used for all bands in spectral signatures and A ∈
+them into the transformer framework, in order to improve the                      Rd×m collects the output features, whereas the proposed GSE
+detail-capturing capacity of subtle spectral discrepancies and                    learns the feature embeddings from locally spectral profiles
+enhance the information transitivity (or connectivity) between                    (or neighboring bands). Thus, the GSE can be modeled as
+layers (i.e., reduce the information loss with the gradual
+deepening of layers), respectively. Moreover, the proposed                                                Ȧ = W X = W g(x)                                (3)
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                            5518615
+
+
+
+                                                                          TABLE I
+                                          D EFINITION OF N OTATIONS U SED IN THE P ROPOSED S PECTRAL F ORMER
+
+
+
+
+where W ∈ Rd×n and X ∈ Rn×m correspond to the grouped
+representations with respect to the variables w and x, respec-
+tively, and n represents the number of neighboring bands. The
+variable W can be simply seen as one layer of network, which
+can be optimized by updating the whole network. The function
+g(·) denotes the overlapping grouping operation in regard to
+the variable x, that is,
+                X = g(x) = [x 1 , . . . , x q , . . . , x m ]            (4)
+where x q = [x q−(n/2) , . . . , x q , . . . , x q+(n/2) ] ∈ Rn×1 , and
+• denotes the round operation. Fig. 4 illustrates the differ-
+ences between bandwise and groupwise spectral embeddings
+in transformer-based backbone networks, i.e., BSE versus
+GSE.
+
+D. Cross-Layer Adaptive Fusion
+   The SC mechanism has been proven to be an effective
+strategy in deep networks, which can enhance information
+exchange between layers and reduce information loss in the                       Fig. 4. Illustrative comparison of (a) bandwise spectral embedding (BSE) and
+network learning process. The use of SC has recently gained                      (b) groupwise spectral embedding (GSE) (BSE versus GSE) in transformers.
+tremendous success in image recognition and segmentation,
+e.g., short SC for ResNet [35] and long SC for U-Net [36].                       parameter for adaptive fusion. It should be noted that our
+It should be noted, however, that the information “memory”                       CAF only skips one encoder, e.g., from z (l−2) (the output of
+ability of the short SC remains limited, while the long SC                       Encoder 1) to z (l) (the output of Encoder 3) in Fig. 5. The
+tends to yield insufficient fusion due to a big gap between                      reasons for this setting are twofold. On the one hand, there
+high- and low-level features. This is also a key problem that                    is a big semantic gap between low- and deep-level features
+existed in transformers, which will pose a new challenge to                      obtained from the shallow and deep layers, respectively. If the
+the architecture design of transformers. To this end, we devise                  relatively long SC, e.g., two, three, and even more encoders,
+a middle-range SC in SpectralFormer to adaptively learn                          is used, then this might lead to an insufficient fusion and
+cross-layer feature fusion (i.e., CAF; see Fig. 5).                              potential information loss. On the other hand, the HS image
+   Let z (l−2) ∈ R1×dz and z (l) ∈ R1×dz be the outputs (or                      classification can be often regarded as a small-sample problem
+representations) in the (l − 2)th and (l)th layers, respectively;                due to the limited available training (need to be labeled
+CAF can be then expressed by                                                     manually) samples. A “small” or “shallow” backbone network,
+                                  (l) 
+                        (l)         z                                            e.g., four or five layers, may already be a good fit for the HS
+                      ẑ ← ẅ (l−2)                           (5)                image classification task. As a result, this, to some extent, can
+                                  z
+                                                                                 explain why we propose to skip only one encoder in the CAF
+where ẑ (l) denotes the fused representations in the (l)th layer                module (since a four or five-layered shallow network is small,
+with the proposed CAF, and ẅ ∈ R1×2 is the learnable network                    which is not capable of adding multiple CAF modules).
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                        IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+                                                                                                                   TABLE II
+                                                                                 L AND -C OVER C LASSES OF THE I NDIAN P INES D ATASET, W ITH THE S TAN -
+                                                                                          DARD T RAINING AND T ESTING S ETS FOR E ACH C LASS
+
+
+
+
+Fig. 5. Diagram of the cross-layer adaptive fusion (CAF) module in the
+proposed SpectralFormer.
+
+
+E. Spatial–Spectral SpectralFormer
+   Beyond the pixelwise HS image classification, we similarly
+investigate the patchwise input (inspired by CNNs), yielding
+the spatial–spectral SpectralFormer version, i.e., patchwise
+SpectralFormer. Different from CNNs that directly input a                           2) Pavia University Data: The second HS scene was
+3-D patch cube, we unfold the 2-D patch of each band to the                      acquired by the Reflective Optics System Imaging Spectrome-
+corresponding 1-D vector representations. Given a 3-D cube                       ter (ROSIS) sensor over Pavia University and its surroundings,
+X ∈ Rm×w×h (w and h are the width and length of the patch),                      Pavia, Italy. The sensor can capture 103 spectral bands ranging
+which can be unfolded along with the spatial direction, we then                  from 430 to 860 nm, and the image consists of 610 × 340
+have                                                                             pixels at a GSD of 1.3 m. This scene includes nine land cover
+                                                                                 classes, where the fixed number of training and testing samples
+                    X̂ = [ x 1 , . . . , x i , . . . , x m ]          (6)
+                                                                                 are detailed in Table III and spatially visualized in Fig. 7.
+where x i ∈ Rwh×1 denotes the unfolded patch for the i th                          3) Houston2013 Data: The third dataset was acquired by
+band. Such an input way can, to a great extent, preserve                         the ITRES CASI-1500 sensor over the campus of the Univer-
+the spectrally sequential information in network learning and,                   sity of Houston and its neighboring rural areas, Texas, USA,
+meanwhile, consider spatially contextual information.                            which, as a benchmark dataset, has been widely used for evalu-
+                                                                                 ating the performance of land cover classification [37]. The HS
+                                                                                 cube comprises 349 × 1905 pixels with 144 wavelength bands
+                          III. E XPERIMENTS
+                                                                                 in the range of 364–1046 nm at 10-nm intervals. It is worth
+  In this section, three well-known HS datasets are firstly                      noting, however, that the Houston2013 dataset that we used is
+described; the implementation details and compared state-                        a cloud-free version, which is processed to recover the missing
+of-the-art methods are then introduced. Finally, extensive                       data or remove occlusions by generating illumination-related
+experiments are conducted with ablation analysis to assess                       threshold maps.1 Table IV lists 15 challenging land-cover
+the HS image classification performance of the proposed                          and land-use categories, as well as the corresponding sample
+SpectralFormer both quantitatively and qualitatively.                            number of training and testing sets. Similarly, the visualization
+                                                                                 results with respect to the false-color HS image and the
+A. Data Description                                                              released training and testing samples provided by the 2013
+                                                                                 IEEE GRSS data fusion contest2 are given in Fig. 8.
+   1) Indian Pines Data: The first HS data were collected
+in 1992 by using the Airborne Visible/Infrared Imaging Spec-
+trometer (AVIRIS) sensor over Northwestern Indiana, USA.                         B. Experimental Setup
+The HS image consists of 145 × 145 pixels at a ground sam-
+pling distance (GSD) of 20 m and 220 spectral bands covering                        1) Evaluation Metrics: We evaluate the classification per-
+the wavelength range of 400–2500 nm with a 10-m spectral                         formance of each model quantitatively in terms of three
+resolution. After removing 20 noisy and water absorption                         commonly used indices, i.e., Overall Accuracy (OA), Average
+bands, 200 spectral bands are retained, i.e., 1–103, 109–149,                    Accuracy (AA), and Kappa Coefficient (κ). Moreover, the
+and 164–219. There are 16 mainly investigated categories in                      classification maps obtained by different models are visualized
+this studied scene. The class name and the number of samples                     to make a qualitative comparison.
+used for training and testing in the classification task are listed
+                                                                                   1 The data were provided by Prof. N. Yokoya from the University of Tokyo
+in Table II, while the spatial distribution of training and testing
+                                                                                 and RIKEN AIP.
+sets are also given in Fig. 6 to reproduce the classification                      2 http://www.grss-ieee.org/community/technical-committees/data-
+results.                                                                         fusion/2013-ieee-grss-data-fusion-contest/
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                            5518615
+
+
+
+                                TABLE III                                                                         TABLE IV
+L AND -C OVER C LASSES OF THE PAVIA U NIVERSITY D ATASET, W ITH THE              L AND -C OVER C LASSES OF THE H OUSTON 2013 D ATASET, W ITH THE
+      S TANDARD T RAINING AND T ESTING S ETS FOR E ACH C LASS                          S TANDARD T RAINING AND T ESTING S ETS FOR E ACH C LASS
+
+
+
+
+   2) Comparison With State-of-the-Art Backbone Networks:
+Several representative baselines and backbone networks are
+selected for the following comparison experiments. They are
+K-nearest neighbor (KNN), support vector machine (SVM),
+random forest (RF), 1-D CNN [17], 2-D CNN [22], RNN [23],
+miniGCN [26], transformers [27], and the proposed Spec-                                128 neuron units, and an ReLU layer. Note that the
+tralFormer. The parameter configurations of these compared                             adjacency matrix in GCN can be generated using a
+methods are detailed as follows.                                                       KNN-based graph (the number of K is the same with
+  1) For the KNN, the number of nearest neighbors (K ) is an                           the KNN classifier, i.e., K = 10). The miniGCN and
+     important factor, which greatly impacts the classification                        1-D CNN share the same network architecture (for a fair
+     performance. We set it to 10.                                                     comparison). As the name suggests, the miniGCN can be
+  2) For the RF, 200 decision trees are used in our                                    trained in a minibatch fashion. We refer to [26] for more
+     experiments.                                                                      details and the codes4 for the sake of reproducibility.
+  3) For the SVM, the libsvm toolbox3 is selected for the                          8) For the transformers,5 we follow the ViT network archi-
+     implementation of the HS image classification task.                               tecture [33], i.e., only including transformer encoders.
+     The SVM is performed by using the radial basis                                    In detail, five encoder blocks are used in the ViT-based
+     function (RBF) kernel. In RBF, two hyperparameters,                               network for HS image classification.
+     σ and λ, can be optimally determined by fivefold                              9) For the proposed SpectralFormer, we adopt the same
+     cross validation on the training set in the range of                              backbone architecture as the above transformers for
+     σ = [2−3 , 2−2 , . . . , 24 ] and λ = [10−2 , 10−1 , . . . , 104 ],               a fair comparison. More specifically, the embedded
+     respectively.                                                                     spectrum with 64 units is fed into five cascaded trans-
+  4) For the 1-D CNN, one convolutional block is defined                               former encoder blocks for HS image classification. Each
+     as the basic network unit, including a set of 1-D con-                            encoder block consists of a four-head SA layer, an MLP
+     volutional filters with the output size of 128, a batch                           with eight hidden dimensions, and a GELU [38] non-
+     normalization (BN) layer, and an ReLU activation func-                            linear activation layer. The dropout layer is employed
+     tion. A softmax function is finally added on the top layer                        after encoding positional embeddings and in MLPs for
+     of the 1-D CNN.                                                                   inhibiting 10% neurons. Considering the fact that the
+  5) The 2-D CNN architecture has three 2-D convolutional                              parameter size is evidently increased from the pixelwise
+     blocks and a softmax layer. Similar to the 1-D CNN,                               SpectralFormer to the patchwise one (the patch size is
+     each convolutional block of 2-D CNN consists of a 2-D                             empirically set as 7 × 7), we additionally employ an 2
+     conventional layer, a BN layer, a max-pooling layer,                              weight decay regularization [39] parameterized by 5e−3
+     and an ReLU activation function. Moreover, the spatially                          to prevent a potential overfitting risk for the latter.
+     and spectrally receptive fields in each 2-D convolutional                     3) Implementation Details: Our proposed SpectralFormer
+     layer are 3 × 3 × 32, 3 × 3 × 64, and 1 × 1 × 128,                          was implemented on the PyTorch platform using a workstation
+     respectively.                                                               with i7-6850K CPU, 128-GB RAM, and an NVIDIA GTX
+  6) For the RNN, there are two recurrent layers with the                        1080Ti 11-GB GPU. We adopt the Adam optimizer [40] with
+     gated recurrent unit (GRU). Each of them has 128                            a minibatch size of 64. The learning rate is initialized with
+     neuron units. The used codes are openly available from                      5e − 4 and decayed by multiplying a factor of 0.9 after
+     https://github.com/danfenghong/HyFTech.                                     each one-tenth of total epochs. We roughly set the epochs
+  7) For the miniGCN, the network block successively con-
+                                                                                   4 https://github.com/danfenghong/IEEE_TGRS_GCN
+     tains a BN layer, a graph convolutional layer with                            5 The codes     of transformers have been provided by authors,
+                                                                                 making it applicable to the HS image classification task; see
+ 3 https://www.csie.ntu.edu.tw/∼cjlin/libsvm/                                    https://github.com/danfenghong/IEEE_TGRS_SpectralFormer.
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                            IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+                                  TABLE V                                                                          TABLE VII
+A BLATION A NALYSIS OF THE P ROPOSED S PECTRAL F ORMER W ITH A                      C LASSIFICATION P ERFORMANCE A NALYSIS B ETWEEN D IFFERENT SC S IN
+          C OMBINATION OF D IFFERENT M ODULES ON THE                                           T RANSFORMERS ON THE I NDIAN P INES D ATASET
+                     I NDIAN P INES D ATASET
+
+
+
+
+                                                                                    around 4% and 3% OAs, respectively). What is better still,
+                                  TABLE VI                                          the joint exploitation of GSE and CAF can further bring a
+S ENSITIVITY A NALYSIS OF THE N UMBER OF N EIGHBORING BANDS IN                      dramatic performance improvement (more than 4% OA). More
+  S PECTRAL F ORMER (O NLY GSE AND GSE + CAF) IN T ERMS OF OA,                      remarkably, our SpectralFormer is also capable of capturing
+               AA, AND κ ON THE I NDIAN P INES D ATASET
+                                                                                    the locally spatial semantics of HS images by simply unfolding
+                                                                                    the patchwise input. As a result, the patchwise SpectralFormer
+                                                                                    performs observably better than pixelwise ones at an increase
+                                                                                    of at least 3% OA (compared to the second record, i.e.,
+                                                                                    78.55%).
+                                                                                       Interestingly, there is a noteworthy trend in Table V. That
+                                                                                    is, the joint use of GSE and CAF tends to obtain the best
+                                                                                    performance when only using a smaller number of neighboring
+on the three datasets to 1000.6 It is worth noting, however,                        bands in GSE compared to that of only using GSE. This
+that we found that, in practice, our SpectralFormer with the                        might be well explained by that, after adding CAF, the spectral
+CAF module is capable of embracing an evident efficiency                            information is capable of being learned more efficiently and
+improvement by convergence using much fewer epochs, i.e.,                           easier. In other words, the less overlap between spectral bands
+300 epochs for the Indian Pines dataset and 600 epochs for                          (i.e., the number of neighboring bands is smaller in GSE)
+the other two datasets.                                                             could be enough to obtain a better classification performance,
+   4) Computational Complexity Analysis: For a given HS                             after the CAF module is activated.
+image with spectral length m, the per-layer computational                              2) Parameter Sensitivity Analysis: Apart from the learnable
+complexity of the proposed SpectralFormer is mainly dom-                            parameters in networks and hyperparameters required in the
+inated by self-attention and multihead operations that require                      training process, the number of neighboring bands in GES
+an overall O(m 2 d + md 2 ), where d is the size of the hidden                      plays a vital role in the final classification performance. It is,
+features that are also used in deep competitors for a fair                          therefore, indispensable to explore the proper parameter range.
+theoretical comparison. The RNN yields the complexity of                            Similarly, we investigate the parameter sensitivity on the
+O(md 2 ) after m times sequential operations, while a CNN                           Indian pines dataset in an ablation manner, i.e., only with
+with the kernel width k increases it considerably to O(kmd 2 ).                     GSE and the joint use of GSE and CAF. Table VI lists
+The GCN (i.e., miniGCN) requires O(bmd + b2 m) due to                               the changing trend of the classification accuracies with the
+its batchwise graph sampling, where b denotes the size of                           gradual increase of the number of grouped bands in terms
+minibatches.                                                                        of OA, AA, and κ. A common conclusion is that GSE can
+                                                                                    better excavate subtle spectral discrepancies by effectively
+C. Model Analysis                                                                   capturing locally spectral embeddings from neighboring bands.
+                                                                                    Within a certain range, the parameter is not sensitive to the
+   1) Ablation Study: We investigate the performance gain                           classification performance. This provides great potentials for
+of the proposed SpectralFormer in terms of classification
+                                                                                    the proposed model in practical applications. In other words,
+accuracies by adding (in stepwise fashion) different modules
+                                                                                    the parameter can be simply and directly used for other
+(i.e., GSE and CAF) in networks. For that, we conduct                               datasets.
+extensive ablation experiments on the Indian Pines dataset
+                                                                                       We also make a quantitative comparison among short-range
+to verify the effectiveness of these components (or modules)
+                                                                                    SC (e.g., in ResNet), long-range SC (e.g., in U-Net), and
+in SpectralFormer for HS image classification applications,                         middle-range (i.e., our CAF module) SC in transformers,
+as listed in Table V.
+                                                                                    in order to verify the effectiveness of the proposed Spec-
+   In detail, the classic transformers (ViT) without GSE and
+                                                                                    tralFormer in processing spectral data. Table VII quantifies
+CAF modules yield the lowest classification accuracies, which,
+                                                                                    the classification performance comparison of using short-,
+to some extent, indicates that the ViT architecture might not
+                                                                                    middle-, and long-range SCs, respectively, on the Indian Pines
+be a good fit for the HS image classification. By plugging                          dataset. In general, the ViT with long-range SC yields a
+either GSE or CAF into ViT, the classification results of
+                                                                                    poor performance, possibly since such an SC strategy might
+pixelwise SpectralFormer are better than that of ViT (beyond
+                                                                                    fail to sufficiently fuse and convey long-range cross-layer
+  6 The epochs might be slightly adjusted for different algorithms and different    features, tending to lose partially “important” information.
+datasets, which will be specifically provided in our codes.                         This demonstrates the superiority of the CAF module that can
+
+ Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                            5518615
+
+
+
+                                                                        TABLE VIII
+Q UANTITATIVE P ERFORMANCE OF D IFFERENT C LASSIFICATION M ETHODS IN T ERMS OF OA, AA, AND κ , AS W ELL AS THE A CCURACIES FOR E ACH
+                                C LASS ON THE I NDIAN P INES D ATASET. T HE B EST O NE I S S HOWN IN B OLD
+
+
+
+
+                                                                         TABLE IX
+Q UANTITATIVE P ERFORMANCE OF D IFFERENT C LASSIFICATION M ETHODS IN T ERMS OF OA, AA, AND κ , AS W ELL AS THE A CCURACIES FOR E ACH
+                             C LASS ON THE PAVIA U NIVERSITY D ATASET. T HE B EST O NE I S S HOWN IN B OLD
+
+
+
+
+Fig. 6. Spatial distribution of training and testing sets, and the classification maps obtained by different models on the Indian Pines dataset, where an ROI
+zoomed-in two times is highlighted for more detailed observation.
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                        IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+                                                                          TABLE X
+Q UANTITATIVE P ERFORMANCE OF D IFFERENT C LASSIFICATION M ETHODS IN T ERMS OF OA, AA, AND κ , AS W ELL AS THE A CCURACIES FOR E ACH
+                               C LASS ON THE H OUSTON 2013 D ATASET. T HE B EST O NE I S S HOWN IN B OLD
+
+
+
+
+Fig. 7. Spatial distribution of training and testing sets, and the classification maps obtained by different models on the Pavia University dataset, where an
+ROI zoomed-in two times is highlighted for more detailed observation.
+
+exchange information across different layers more effectively                    versions) are reported in Fig. 9. There is a basically reasonable
+(cf. short-range SC) and reduce the information loss (cf. long-                  trend in OA’s results (see Fig. 9). That is, with the increase in
+range SC).                                                                       the percentage of used training samples, the classification per-
+   Furthermore, we randomly selected a varying number of                         formance gradually improves. Note that the OAs are tending
+training samples from the given training set on the Indian                       toward stability when more training samples (e.g., 80%, 90%,
+Pines dataset out of ten runs in the proportion of [10%,                         and 100%) are involved, showing the stability of the proposed
+20%, . . . , 100%] at intervals of 10%. The average results with                 SpectralFormer to a great extent. Moreover, the patchwise
+standard deviation values in terms of the OA obtained by the                     SpectralFormer observably outperforms the pixelwise one,
+proposed SpectralFormer (including pixelwise and patchwise                       as expected.
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                            5518615
+
+
+
+
+Fig. 8. Spatial distribution of training and testing sets, and the classification maps obtained by different models on the Houston2013 dataset, where an ROI
+zoomed-in two times is highlighted for more detailed observation.
+
+D. Quantitative Results and Analysis
+   Quantitative classification results in terms of three overall
+indices, i.e., OA, AA, and κ, and the accuracies for each
+class, are reported in Tables VIII–X for Indian Pines, Pavia
+University, and Houston2013 HS datasets, respectively.
+   Overall, the conventional classifiers, e.g., KNN, RF, and
+SVM, achieve similar classification performance on all three
+datasets, except for the accuracies in terms of OA, AA, and κ
+with KNN on the Indian Pines dataset (which are far inferior to
+those using RF and SVM). Due to the powerful learning ability
+of DL techniques, classic backbone networks, e.g., 1-D CNN,
+2-D CNN, RNN, and miniGCN, observably perform better
+than aforementioned conventional classifiers, i.e., KNN, RF,
+and SVM. The results, to a great extent, demonstrate the value
+and practicality of DL-based approaches in HS image classifi-
+cation. Without any convolutional and recurrent operations,
+transformers extract finer spectral representations from the                     Fig. 9. Classification results (OA) obtained by our proposed SpectralFormer
+sequence perspectives, yielding a comparable performance to                      (pixelwise and patchwise) with the varying number of used training samples
+CNN-, RNN-, or GCN-based models.                                                 on the Indian Pines dataset.
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                         IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+
+Fig. 10.   Visualization of selected encoder output features obtained with only CAF and without CAF (i.e., the original ViT).
+
+
+   Although transformers are capable of capturing globally                        a region of interest (ROI) (from Figs. 6, 7, and 8) zoomed-
+sequential information, the ability in modeling some key                          in two times to highlight the differences in classification maps
+factors—locally spectral discrepancies—remains limited and                        between different models, further evaluating their classification
+leads to a performance bottleneck. To overcome this prob-                         performance more intuitively. As can be seen from these
+lem, the proposed SpectralFormer fully extracts local spectral                    ROIs, a remarkable phenomenon is that our methods, i.e.,
+information from neighboring bands, dramatically improving                        pixelwise and patchwise SpectralFormers, show more realistic
+the classification performance. In particular, the pixelwise                      and finer details. In particular, the results of our methods have
+SpectralFormer unexpectedly outperforms others even though                        less noisy points compared to those pixelwise methods, e.g.,
+compared to CNN-based methods considering spatial contents.                       KNN, RF, SVM, 1-D CNN, RNN, miniGCN, and ViT, but
+Undoubtedly, the patchwise SpectralFormer obtains higher                          also avoid over-smoothness in edges or some small semantic
+classification accuracies that are far superior to those obtained                 objects (cf. 2-D CNN), which yields more accurate classifica-
+by other competitors since the spatial–contextual informa-                        tion performance.
+tion is jointly considered in the sequential feature extraction                      Feature Visualization: Fig. 10 visualizes selected encoder
+process.                                                                          output features using the proposed SpectralFormer framework
+   In addition, for those challenging classes that have limited                   with only CAF and without CAF (i.e., ViT). We selectively
+training samples (e.g., Grass Pasture Mowed and Oats) and                         pick out some representative feature maps for visual compari-
+imbalanced (or noisy) samples (e.g., Corn Mintill, Grass                          son, where the visualization results of using the CAF module
+Pasture, and Hay Windrowed) on the Indian Pines data, Spec-                       have a finer appearance (e.g., the edge or outline of objects,
+tralFormer, either pixelwise or patchwise input, tends to obtain                  textural structure, and so on) than those without CAF. This also
+better classification performance by focusing on particular                       demonstrates the effectiveness and superiority of the designed
+absorption positions of spectral profiles. On contrary, despite                   CAF module from the visual perspective.
+the excellent representation ability for spectral sequence data,
+transformers (ViT) fail to accurately capture the detailed                                                   IV. C ONCLUSION
+spectral absorption or change due to the weak modeling ability
+                                                                                     HS images are typically collected (or represented) as a data
+in locally spectral discrepancies.
+                                                                                  cube with spatial–spectral information, which can be generally
+                                                                                  regarded as a sequence of data along the spectral dimension.
+E. Visual Evaluation                                                              Unlike CNNs that focus mainly on contextual information
+   We make a qualitative evaluation by visualizing the classi-                    modeling, transformers have been proven to be a powerful
+fication maps obtained by different methods. Figs. 6, 7, and 8                    architecture in characterizing the sequential properties glob-
+provide the obtained results for the Indian Pines, Pavia                          ally. However, the classic transformer-based vision networks,
+University, and Houston2013 datasets, respectively. Roughly,                      e.g., ViT, inevitably suffer from performance degradation when
+conventional classification models (e.g., KNN, RF, and SVM)                       processing HS-like data. This might be explained well by
+tend to generate salt and pepper noises in classification maps                    the fact that ViT fails to model locally detailed spectral
+of three considered datasets. This indirectly indicates that these                discrepancies and convey “memory”-like components (from
+classifiers fail to accurately identify the materials of objects.                 shallow to deep layers) effectively. To this end, in this paper,
+Not surprisingly, DL-based models, e.g., CNNs, RNNs, and                          we propose a new transformer-based backbone network, called
+GCNs, obtain relatively smooth classification maps due to their                   SpectralFormer, which is more focused on extracting spectral
+powerful nonlinear data fitting ability. As an emerging network                   information. Without using any convolution or recurrent units,
+architecture, transformers (ViT used in our case) can extract                     the proposed SpectralFormer can achieve state-of-the-art clas-
+highly sequential representations from HS images, leading                         sification results for HS images.
+to visualized classification maps that are comparable to the                         In the future, we will investigate strategies to further
+above classic backbone networks. By enhancing spectrally                          improve the transformer-based architecture by utilizing more
+neighboring information and conveying “memory” information                        advanced techniques, e.g., attention, self-supervised learning,
+across layers more effectively, our proposed SpectralFormer                       making it more applicable to the HS image classification task,
+obtains highly desirable classification maps, especially in                       and also attempt to establish a lightweight transformer-based
+terms of texture and edge details. Furthermore, we selected                       network to reduce the network complexity while maintaining
+
+ Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                              5518615
+
+
+
+its performance. Moreover, we would also like to embed more                       [15] D. Hong, X. Wu, P. Ghamisi, J. Chanussot, N. Yokoya, and X. X. Zhu,
+physical characteristics of spectral bands and prior knowledge                         “Invariant attribute profiles: A spatial-frequency joint feature extractor
+                                                                                       for hyperspectral image classification,” IEEE Trans. Geosci. Remote
+of HS images into the proposed framework, yielding more                                Sens., vol. 58, no. 6, pp. 3791–3808, Jun. 2020.
+interpretable deep models. Furthermore, the number of skipped                     [16] Q. Li, B. Zheng, B. Tu, J. Wang, and C. Zhou, “Ensemble EMD-
+and connected encoders in the CAF module is an important                               based spectral-spatial feature extraction for hyperspectral image classifi-
+                                                                                       cation,” IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 13,
+factor that might be capable of improving the classification                           pp. 5134–5148, 2020.
+performance of the proposed SpectralFormer, which should                          [17] B. Rasti et al., “Feature extraction for hyperspectral imagery: The
+be paid more attention to in future work.                                              evolution from shallow to deep: Overview and toolbox,” IEEE Geosci.
+                                                                                       Remote Sens. Mag., vol. 8, no. 4, pp. 60–88, Dec. 2020.
+                                                                                  [18] Y. LeCun, Y. Bengio, and G. Hinton, “Deep learning,” Nature, vol. 521,
+                         ACKNOWLEDGMENT                                                pp. 436–444, May 2015.
+                                                                                  [19] X. Zhao et al., “Joint classification of hyperspectral and LiDAR data
+  The authors would like to thank the Hyperspectral Image                              using hierarchical random walk and deep CNN architecture,” IEEE
+Analysis group at the University of Houston for providing                              Trans. Geosci. Remote Sens., vol. 58, no. 10, pp. 7355–7370, Oct. 2020.
+                                                                                  [20] M. Zhang, W. Li, Q. Du, L. Gao, and B. Zhang, “Feature extraction
+the CASI University of Houston datasets and the IEEE GRSS                              for classification of hyperspectral and LiDAR data using patch-to-patch
+DFC2013.                                                                               CNN,” IEEE Trans. Cybern., vol. 50, no. 1, pp. 100–111, Jan. 2020.
+                                                                                  [21] Y. Chen, Z. Lin, X. Zhao, G. Wang, and Y. Gu, “Deep learning-based
+                              R EFERENCES                                              classification of hyperspectral data,” IEEE J. Sel. Topics Appl. Earth
+                                                                                       Observ. Remote Sens., vol. 7, no. 6, pp. 2094–2107, Jun. 2014.
+ [1] D. Hong et al., “Interpretable hyperspectral artificial intelligence: When   [22] Y. Chen, H. Jiang, C. Li, X. Jia, and P. Ghamisi, “Deep feature extrac-
+     nonconvex modeling meets hyperspectral remote sensing,” IEEE Geosci.              tion and classification of hyperspectral images based on convolutional
+     Remote Sens. Mag., vol. 9, no. 2, pp. 52–87, Jun. 2021.                           neural networks,” IEEE Trans. Geosci. Remote Sens., vol. 54, no. 10,
+ [2] Y. Wang, J. Peng, Q. Zhao, D. Meng, Y. Leung, and X.-L. Zhao,                     pp. 6232–6251, Oct. 2016.
+     “Hyperspectral image restoration via total variation regularized low-rank    [23] R. Hang, Q. Liu, D. Hong, and P. Ghamisi, “Cascaded recurrent neural
+     tensor decomposition,” IEEE J. Sel. Topics Appl. Earth Observ. Remote             networks for hyperspectral image classification,” IEEE Trans. Geosci.
+     Sens., vol. 11, no. 4, pp. 1227–1243, Apr. 2018.                                  Remote Sens., vol. 57, no. 8, pp. 5384–5394, Aug. 2019.
+ [3] W. Cao, K. Wang, G. Han, J. Yao, and A. Cichocki, “A robust PCA              [24] L. Zhu, Y. Chen, P. Ghamisi, and J. A. Benediktsson, “Generative
+     approach with noise structure learning and spatial–spectral low-rank              adversarial networks for hyperspectral image classification,” IEEE Trans.
+     modeling for hyperspectral image restoration,” IEEE J. Sel. Topics Appl.          Geosci. Remote Sens., vol. 56, no. 9, pp. 5046–5063, Sep. 2018.
+     Earth Observ. Remote Sens., vol. 11, no. 10, pp. 3863–3879, Oct. 2018.       [25] M. E. Paoletti et al., “Capsule networks for hyperspectral image
+ [4] M. Wang, Q. Wang, J. Chanussot, and D. Hong, “L 0 -L1 hybrid                      classification,” IEEE Trans. Geosci. Remote Sens., vol. 57, no. 4,
+     total variation regularization and its applications on hyperspectral              pp. 2145–2160, Apr. 2019.
+     image mixed noise removal and compressed sensing,” IEEE Trans.               [26] D. Hong, L. Gao, J. Yao, B. Zhang, A. Plaza, and J. Chanussot, “Graph
+     Geosci. Remote Sens., vol. 59, no. 9, pp. 7695–7710, Sep. 2021, doi:              convolutional networks for hyperspectral image classification,” IEEE
+     10.1109/TGRS.2021.3055516.                                                        Trans. Geosci. Remote Sens., vol. 59, no. 7, pp. 5966–5978, Jul. 2021.
+ [5] J. Peng et al., “Low-rank and sparse representation for hyperspectral        [27] A. Vaswani et al., “Attention is all you need,” 2017, arXiv:1706.03762.
+     image processing: A review,” IEEE Geosci. Remote Sens. Mag., early           [28] S. Li, W. Song, L. Fang, Y. Chen, P. Ghamisi, and J. A. Benediktsson,
+     access, Jun. 10, 2021, doi: 10.1109/MGRS.2021.3075491.                            “Deep learning for hyperspectral image classification: An overview,”
+ [6] D. Hong, N. Yokoya, J. Chanussot, J. Xu, and X. X. Zhu, “Joint and                IEEE Trans. Geosci. Remote Sens., vol. 57, no. 9, pp. 6690–6709,
+     progressive subspace analysis (JPSA) with spatial–spectral manifold               Sep. 2019.
+     alignment for semisupervised hyperspectral dimensionality reduction,”        [29] H. Abdi and L. J. Williams, “Principal component analysis,” Wiley
+     IEEE Trans. Cybern., vol. 51, no. 7, pp. 3602–3615, Jul. 2021.                    Interdiscipl. Rev., Comput. Statist., vol. 2, no. 4, pp. 433–459, 2010.
+ [7] F. Luo, T. Guo, Z. Lin, J. Ren, and X. Zhou, “Semisupervised hypergraph      [30] Y. Bengio, P. Simard, and P. Frasconi, “Learning long-term dependencies
+     discriminant learning for dimensionality reduction of hyperspectral               with gradient descent is difficult,” IEEE Trans. Neural Netw., vol. 5,
+     image,” IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 13,            no. 2, pp. 157–166, Mar. 1994.
+     pp. 4242–4256, 2020.                                                         [31] G. Ke, D. He, and T.-Y. Liu, “Rethinking positional encoding in
+ [8] J. Yao, D. Meng, Q. Zhao, W. Cao, and Z. Xu, “Nonconvex-sparsity and              language pre-training,” 2020, arXiv:2006.15595.
+     nonlocal-smoothness-based blind hyperspectral unmixing,” IEEE Trans.         [32] Y. Dong, J.-B. Cordonnier, and A. Loukas, “Attention is not all you
+     Image Process., vol. 28, no. 6, pp. 2991–3006, Jun. 2019.                         need: Pure attention loses rank doubly exponentially with depth,” 2021,
+ [9] D. Hong, N. Yokoya, J. Chanussot, and X. X. Zhu, “An augmented linear             arXiv:2103.03404.
+     mixing model to address spectral variability for hyperspectral unmixing,”    [33] A. Dosovitskiy et al., “An image is worth 16x16 words: Transformers
+     IEEE Trans. Image Process., vol. 28, no. 4, pp. 1923–1938, Apr. 2019.             for image recognition at scale,” 2020, arXiv:2010.11929.
+[10] Y. Yuan, Z. Zhang, and Q. Wang, “Improved collaborative non-negative         [34] X. Wang, R. B. Girshick, A. Gupta, and K. He, “Non-local neural
+     matrix factorization and total variation for hyperspectral unmixing,”             networks,” in Proc. IEEE Conf. Comput. Vis. Pattern Recognit. (CVPR),
+     IEEE J. Sel. Topics Appl. Earth Observ. Remote Sens., vol. 13,                    Jan. 2018, pp. 7794–7803.
+     pp. 998–1010, 2020.                                                          [35] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image
+[11] L. Gao, Z. Han, D. Hong, B. Zhang, and J. Chanussot, “CyCU-                       recognition,” in Proc. CVPR, 2016, pp. 770–778.
+     net: Cycle-consistency unmixing network by learning cascaded autoen-         [36] O. Ronneberger, P. Fischer, and T. Brox, “U-Net: Convolutional net-
+     coders,” IEEE Trans. Geosci. Remote Sens., early access, Mar. 23, 2021,           works for biomedical image segmentation,” in Medical Image Comput-
+     doi: 10.1109/TGRS.2021.3064958.                                                   ing and Computer-Assisted Intervention. Munich, Germany: Springer,
+[12] D. Hong et al., “Endmember-guided unmixing network (EGU-Net):                     2015, pp. 234–241.
+     A general deep learning framework for self-supervised hyperspec-             [37] D. Hong, L. Gao, N. Yokoya, J. Yao, J. Chanussot, Q. Du, and B. Zhang,
+     tral unmixing,” IEEE Trans. Neural Netw. Learn. Syst., early access,              “More diverse means better: Multimodal deep learning meets remote-
+     May 28, 2021, doi: 10.1109/TNNLS.2021.3082289.                                    sensing imagery classification,” IEEE Trans. Geosci. Remote Sens.,
+[13] D. Hong, N. Yokoya, J. Chanussot, J. Xu, and X. X. Zhu, “Learn-                   vol. 59, no. 5, pp. 4340–4354, May 2021.
+     ing to propagate labels on graphs: An iterative multitask regression         [38] D. Hendrycks and K. Gimpel, “Gaussian error linear units (GELUs),”
+     framework for semi-supervised hyperspectral dimensionality reduction,”            2016, arXiv:1606.08415.
+     ISPRS J. Photogramm. Remote Sens., vol. 158, pp. 35–49, Dec. 2019.           [39] I. Loshchilov and F. Hutter, “Decoupled weight decay regularization,”
+[14] J. Peng, W. Sun, and Q. Du, “Self-paced joint sparse representation for           2017, arXiv:1711.05101.
+     the classification of hyperspectral images,” IEEE Trans. Geosci. Remote      [40] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,”
+     Sens., vol. 57, no. 2, pp. 1183–1194, Feb. 2019.                                  2014, arXiv:1412.6980.
+
+
+
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+5518615                                                                            IEEE TRANSACTIONS ON GEOSCIENCE AND REMOTE SENSING, VOL. 60, 2022
+
+
+
+                            Danfeng Hong (Senior Member, IEEE) received                                       Lianru Gao (Senior Member, IEEE) received the
+                            the M.Sc. degree (summa cum laude) in computer                                    B.S. degree in civil engineering from Tsinghua Uni-
+                            vision from the College of Information Engineering,                               versity, Beijing, China, in 2002, and the Ph.D. degree
+                            Qingdao University, Qingdao, China, in 2015, and                                  in cartography and geographic information system
+                            the Dr.-Ing. degree (summa cum laude) from the                                    from the Institute of Remote Sensing Applica-
+                            Signal Processing in Earth Observation (SiPEO),                                   tions, Chinese Academy of Sciences (CAS), Beijing,
+                            Technical University of Munich (TUM), Munich,                                     in 2007.
+                            Germany, in 2019.                                                                    He is currently a Professor with the Key Labora-
+                              From 2015 to 2019, he was a Research Asso-                                      tory of Digital Earth Science, Aerospace Information
+                            ciate with the Remote Sensing Technology Institute                                Research Institute, CAS. He also has been a Vis-
+                            (IMF), German Aerospace Center (DLR), Oberpfaf-                                   iting Scholar with the University of Extremadura,
+fenhofen, Germany. Since 2019, he has been a Research Scientist and led             Cáceres, Spain, in 2014, and at the Mississippi State University (MSU),
+a Spectral Vision Working Group with IMF, DLR. He is also an Adjunct                Starkville, MS, USA, in 2016. In the last 10 years, he was the PI of
+Scientist with GIPSA-Lab, Grenoble INP, CNRS, University Grenoble Alpes,            ten scientific research projects at national and ministerial levels, including
+Grenoble, France, from 2020. He is currently with the Key Laboratory of Dig-        projects by the National Natural Science Foundation of China (2016–2019,
+ital Earth Science, Aerospace Information Research Institute (AIR), Chinese         2018–2020, and 2022–2025) and by the Key Research Program of the CAS
+Academy of Sciences (CAS). His research interests include signal/image              from 2013 to 2015. He has authored or coauthored more than 180 peer-
+processing and analysis, hyperspectral remote sensing, machine/deep learning,       reviewed articles, and there are more than 100 journal papers included
+artificial intelligence, and their applications in Earth Vision.                    by Science Citation Index (SCI). He was coauthor of three academic
+   Dr. Hong is an Editorial Board Member of Remote Sensing and a Top-               books including Hyperspectral Image Information Extraction. He obtained 29
+ical Associate Editor of the IEEE T RANSACTIONS ON G EOSCIENCE AND                  National Invention Patents in China. His research focuses on hyperspectral
+R EMOTE S ENSING (TGRS). He was a recipient of the Best Reviewer Award              image processing and information extraction.
+of the IEEE TGRS in 2021 and the Jose Bioucas Dias Award for recognizing              Dr. Gao was awarded the Outstanding Science and Technology Achievement
+the outstanding paper at the Workshop on Hyperspectral Imaging and Signal           Prize of the CAS in 2016. He was supported by the China National Science
+Processing: Evolution in Remote Sensing (WHISPERS) in 2021. He is                   Fund for Excellent Young Scholars in 2017 and won the Second Prize of The
+also a Leading Guest Editor of the International Journal of Applied Earth           State Scientific and Technological Progress Award in 2018. He received the
+Observation and Geoinformation, the IEEE J OURNAL OF S ELECTED T OPICS              recognition of the Best Reviewers of the IEEE JSTARS in 2015 and the Best
+IN A PPLIED E ARTH O BSERVATIONS, and Remote Sensing.                               Reviewers of the IEEE TGRS in 2017.
+
+
+
+
+                         Zhu Han (Student Member, IEEE) received the
+                         B.S. degree in electrical engineering from the North
+                         China University of Technology, Beijing, China,
+                         in 2019. She is currently pursuing the Ph.D. degree
+                         in cartography and geographic information system
+                         from the Key Laboratory of Digital Earth Science,                                    Bing Zhang (Fellow, IEEE) received the B.S. degree
+                         Aerospace Information Research Institute, Chinese                                    in geography from Peking University, Beijing,
+                         Academy of Sciences (CAS), Beijing, China.                                           China, in 1991, and the M.S. and Ph.D. degrees
+                           Her research interests include hyperspectral image                                 in remote sensing from the Institute of Remote
+                         processing, deep learning, and artificial intelligence.                              Sensing Applications, Chinese Academy of Sci-
+                                                                                                              ences (CAS), Beijing, China, in 1994 and 2003,
+                                                                                                              respectively.
+                                                                                                                He is currently a Full Professor and the Deputy
+                                                                                                              Director of the Aerospace Information Research
+                                                                                                              Institute, CAS, where he has been leading lots of
+                                                                                                              key scientific projects in the area of hyperspectral
+                                                                                    remote sensing for more than 25 years. He has developed five software
+                                                                                    systems in image processing and applications. His creative achievements
+                                                                                    were rewarded ten important prizes from the Chinese government and special
+                                                                                    government allowances of the Chinese State Council. He has authored more
+                                                                                    than 300 publications, including more than 170 journal papers. He has edited
+                                                                                    six books/contributed book chapters on hyperspectral image processing and
+                        Jing Yao received the B.Sc. degree from Northwest           subsequent applications. His research interests include the development of
+                        University, Xi’an, China, in 2014, and the Ph.D.            mathematical and physical models, and image processing software for the
+                        degree in the School of Mathematics and Statistics,         analysis of hyperspectral remote sensing data in many different areas.
+                        Xi’an Jiaotong University, Xi’an, China, in 2021.             Dr. Zhang was awarded the National Science Foundation for Distinguished
+                          From 2019 to 2020, he was a Visiting Stu-                 Young Scholars of China in 2013 and the 2016 Outstanding Science and
+                        dent with Signal Processing in Earth Observation            Technology Achievement Prize of the Chinese Academy of Sciences, the
+                        (SiPEO), Technical University of Munich (TUM),              highest level of Awards for the CAS scholars. He is currently serving as an
+                        Munich, Germany, and the Remote Sensing Tech-               Associate Editor for the IEEE J OURNAL OF S ELECTED T OPICS IN A PPLIED
+                        nology Institute (IMF), German Aerospace Center             E ARTH O BSERVATIONS AND R EMOTE S ENSING. He has been serving as a
+                        (DLR), Oberpfaffenhofen, Germany. He is currently           Technical Committee Member of IEEE Workshop on Hyperspectral Image and
+                        an Assistant Professor with the Key Laboratory of           Signal Processing, since 2011, and as the President of hyperspectral remote
+Digital Earth Science, Aerospace Information Research Institute, Chinese            sensing committee of China National Committee of International Society for
+Academy of Sciences, Beijing, China. His research interests include low-            Digital Earth since 2012, and as the Standing Director of Chinese Society
+rank modeling, hyperspectral image analysis, and deep learning-based image          of Space Research (CSSR) since 2016. He is the Student Paper Competition
+processing methods.                                                                 Committee member in IGARSS from 2015 to 2019.
+
+
+Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+HONG et al.: SpectralFormer: RETHINKING HYPERSPECTRAL IMAGE CLASSIFICATION WITH TRANSFORMERS                                                             5518615
+
+
+
+                          Antonio Plaza (Fellow, IEEE) received the M.Sc.                                   Jocelyn Chanussot (Fellow, IEEE) received the
+                          and Ph.D. degrees in computer engineering from the                                M.Sc. degree in electrical engineering from the
+                          University of Extremadura, Badajoz, Spain, in 1999                                Grenoble Institute of Technology (Grenoble INP),
+                          and 2002, respectively.                                                           Grenoble, France, in 1995, and the Ph.D. degree
+                            He is currently a Full Professor and the Head of the                            from the Université de Savoie, Annecy, France,
+                          Hyperspectral Computing Laboratory, Department                                    in 1998.
+                          of Technology of Computers and Communications,                                      Since 1999, he has been with Grenoble INP,
+                          University of Extremadura. He has authored more                                   where he is currently a Professor of signal and
+                          than 600 publications in this field, including 347                                image processing. He has been a Visiting Scholar
+                          JCR journal papers (253 in IEEE journals), 24                                     with Stanford University, Stanford, CA, USA, KTH,
+                          book chapters, and 330 peer-reviewed conference                                   Sweden, and NUS, Singapore. Since 2013, he has
+proceeding papers. He has guest-edited ten special issues on hyperspectral         been an Adjunct Professor with the University of Iceland, Reykjavik, Iceland.
+remote sensing for different journals. His main research interests comprise        From 2015 to 2017, he was a Visiting Professor with the University of
+hyperspectral data processing and parallel computing of remote sensing data.       California, Los Angeles (UCLA), Los Angeles, CA, USA. He holds the AXA
+  Prof. Plaza is a fellow of the IEEE for contributions to hyperspectral data      Chair in remote sensing and an Adjunct Professor with the Chinese Academy
+processing and parallel computing of Earth observation data and a member           of Sciences, Aerospace Information Research Institute, Beijing. His research
+of Academia Europaea, The Academy of Europe. He is a recipient of the              interests include image analysis, hyperspectral remote sensing, data fusion,
+recognition of Best Reviewers of the IEEE G EOSCIENCE AND R EMOTE                  machine learning, and artificial intelligence.
+S ENSING L ETTERS in 2009 and the Recognition of Best Reviewers of the               Dr. Chanussot is the Founding President of the IEEE Geoscience and
+IEEE T RANSACTIONS ON G EOSCIENCE AND R EMOTE S ENSING in 2010,                    Remote Sensing French chapter from 2007 to 2010 which received the 2010
+for which he served as an Associate Editor from 2007 to 2012. He is also an        IEEE GRS-S Chapter Excellence Award. He has received multiple outstanding
+Associate Editor for IEEE ACCESS (receiving the recognition of Outstanding         paper awards. He was the Vice-President of the IEEE Geoscience and Remote
+Associate Editor for the journal in 2017) and was also a member of the             Sensing Society, in charge of meetings and symposia from 2017 to 2019.
+Editorial Board of the IEEE Geoscience and Remote Sensing Newsletter               He was a General Chair of the first IEEE GRSS Workshop on Hyperspectral
+from 2011 to 2012 and the IEEE Geoscience and Remote Sensing Magazine in           Image and Signal Processing, Evolution in Remote sensing (WHISPERS).
+2013. He was also a member of the steering committee of the IEEE J OURNAL          He was the Chair from 2009 to 2011 and a Co-Chair of the GRS Data Fusion
+OF S ELECTED T OPICS IN A PPLIED E ARTH O BSERVATIONS AND R EMOTE                  Technical Committee from 2005 to 2008. He was a member of the Machine
+S ENSING (JSTARS). He is a recipient of the Best Column Award of the               Learning for Signal Processing Technical Committee of the IEEE Signal
+IEEE Signal Processing Magazine in 2015, the 2013 Best Paper Award of              Processing Society from 2006 to 2008 and the Program Chair of the IEEE
+the JSTARS journal, and the most highly cited paper from 2005 to 2010 in           International Workshop on Machine Learning for Signal Processing in 2009.
+the Journal of Parallel and Distributed Computing. He received best paper          He is an Associate Editor for the IEEE T RANSACTIONS ON G EOSCIENCE
+awards at the IEEE Workshop on Hyperspectral Image and Signal Processing:          AND R EMOTE S ENSING , the IEEE T RANSACTIONS ON I MAGE P ROCESSING ,
+Evolution in Remote Sensing, the IEEE International Conference on Space            and the P ROCEEDINGS OF THE IEEE. He was the Editor-in-Chief of the IEEE
+Technology, and the IEEE Symposium on Signal Processing and Information            J OURNAL OF S ELECTED T OPICS IN A PPLIED E ARTH O BSERVATIONS AND
+Technology. He served as the Director of Education Activities for the IEEE         R EMOTE S ENSING from 2011 to 2015. In 2014 he served as a Guest Editor
+G EOSCIENCE AND R EMOTE S ENSING S OCIETY (GRSS) from 2011 to 2012,                for the IEEE Signal Processing Magazine. He is a member of the Institut
+and as President of the Spanish Chapter of IEEE GRSS from 2012 to 2016.            Universitaire de France from 2012 to 2017 and a Highly Cited Researcher
+He is currently serving as a Chair of the Publications Awards Committee of         (Clarivate Analytics/Thomson Reuters).
+the IEEE GRSS and as a Vice-Chair of the Fellow Evaluations Committee
+of the IEEE GRSS. He has reviewed more than 500 manuscripts for over 50
+different journals. He served as the Editor-in-Chief of the IEEE T RANSAC -
+TIONS ON G EOSCIENCE AND R EMOTE S ENSING journal from 2013 to 2017
+and is currently serving as the Editor-in-Chief of the IEEE J OURNAL ON
+M INIATURIZATION FOR A IR AND S PACE S YSTEMS . He has been included
+in the 2018, 2019, 2020, and 2021 Highly Cited Researchers List (Clarivate
+Analytics). Additional information: http://www.umbc.edu/rssipl/people/aplaza
+
+
+
+
+ Authorized licensed use limited to: LNM Institute of Information Technology. Downloaded on March 19,2026 at 17:41:50 UTC from IEEE Xplore. Restrictions apply.
+

@@ -26,11 +26,11 @@ class GaussianMaternKernel(Kernel):
 
     has_lengthscale = True
 
-    def __init__(self, **kwargs):
+    def __init__(self, ard_num_dims=None, **kwargs):
         super(GaussianMaternKernel, self).__init__(**kwargs)
         # The paper specifies h = 5/2 for the Matern component
-        self.matern = MaternKernel(nu=2.5, **kwargs)
-        self.rbf = RBFKernel(**kwargs)
+        self.matern = MaternKernel(nu=2.5, ard_num_dims=ard_num_dims, **kwargs)
+        self.rbf = RBFKernel(ard_num_dims=ard_num_dims, **kwargs)
 
         # Fluctuation parameter xi (ξ) from the paper
         self.register_parameter(
@@ -78,7 +78,7 @@ class SIVGPModel(ApproximateGP):
             batch_shape=torch.Size([num_classes])
         )
         self.covar_module = gpytorch.kernels.ScaleKernel(
-            GaussianMaternKernel(batch_shape=torch.Size([num_classes])),
+            GaussianMaternKernel(ard_num_dims=50, batch_shape=torch.Size([num_classes])),
             batch_shape=torch.Size([num_classes]),
         )
 
@@ -208,7 +208,8 @@ class GMDRF_Pipeline(nn.Module):
         output = self.gp_model(x_center)
 
         # Convert classification labels to one-hot for GP regression approximation
-        y_one_hot = torch.nn.functional.one_hot(y, num_classes=self.num_classes).float()
+        # Map 0, 1 to -1, 1 as it helps GPyTorch GP regression converge faster without vanishing
+        y_one_hot = torch.nn.functional.one_hot(y, num_classes=self.num_classes).float() * 2 - 1
 
         loss = -mll(output, y_one_hot)
         loss.backward()
@@ -237,7 +238,8 @@ class GMDRF_Pipeline(nn.Module):
 
                 # 2. Spatial Field (SAMRF via ADMM)
                 # Applying the spatial constraint over the continuous function space
-                t_spatial = samrf_admm_patch(f_gp, delta_sp=10.0, phi=0.1)
+                # Reduced delta_sp from 10.0 to 0.1 so soft-threshold doesn't collapse everything
+                t_spatial = samrf_admm_patch(f_gp, delta_sp=0.1, phi=0.1)
 
                 # Softmax to get final class (predictions are based on center pixel at index 4, 4)
                 pred_class = torch.argmax(t_spatial[:, :, 4, 4], dim=1)
@@ -274,7 +276,7 @@ def run_gmdrf(train_loader, test_loader, num_classes, spectral_dim, epochs=50):
             {"params": pipeline.gp_model.parameters()},
             {"params": pipeline.likelihood.parameters()},
         ],
-        lr=1e-2,
+        lr=5e-2,
         relative_step=False,
         scale_parameter=False,
         warmup_init=False,
@@ -341,7 +343,7 @@ def get_dataloaders(dataset_abbr: str = "IP", pca_components: int = 50, batch_si
     proc_dir = os.path.join(PROCESSED_ROOT, f"pca_{pca_components}", dataset_abbr)
     if not os.path.isdir(proc_dir):
         # Fallback for local execution
-        proc_dir = f"./hsi-ds-pca-{pca_components}-train-5/pca_{pca_components}/{dataset_abbr}"
+        proc_dir = f"/home/Stark/Downloads/{dataset_abbr}_5"
     
     if not os.path.isdir(proc_dir):
         raise FileNotFoundError(f"Data directory not found: {proc_dir}")
@@ -355,6 +357,13 @@ def get_dataloaders(dataset_abbr: str = "IP", pca_components: int = 50, batch_si
         y_tr = y_tr.long()
     if y_te.dtype == torch.uint8:
         y_te = y_te.long()
+
+    # Apply Z-score Normalization feature-wise so GP lengthscales do not collapse
+    # X_tr shape: [N, 1, 50, 9, 9] (Channels is dim 2)
+    mean = X_tr.mean(dim=(0, 3, 4), keepdim=True)
+    std = X_tr.std(dim=(0, 3, 4), keepdim=True) + 1e-8
+    X_tr = (X_tr - mean) / std
+    X_te = (X_te - mean) / std
 
     y_np = y_tr.numpy()
     num_classes = 16
@@ -373,5 +382,5 @@ if __name__ == "__main__":
     print("  G-MDRF — Indian Pines (PCA-50)")
     print("=" * 62)
     
-    train_loader, test_loader = get_dataloaders(dataset_abbr="IP", pca_components=50, batch_size=64)
-    run_gmdrf(train_loader, test_loader, num_classes=16, spectral_dim=50, epochs=50)
+    train_loader, test_loader = get_dataloaders(dataset_abbr="IP", pca_components=500, batch_size=64)
+    run_gmdrf(train_loader, test_loader, num_classes=16, spectral_dim=50, epochs=500)
