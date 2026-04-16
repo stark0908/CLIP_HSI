@@ -55,8 +55,8 @@ CLASS_NAMES = [
     "Stone-Steel-Towers",
 ]
 
-processed_root = "/home/23dcs505/datasets/IP/"
-output_dir = "/home/23dcs505/datasets/IP/rssan_results"
+processed_root = "/home/23dcs505/datasets/HSI/pca50_train5/"
+output_dir = "/home/23dcs505/datasets/HSI/pca50_train5/rssan_results"
 os.makedirs(output_dir, exist_ok=True)
 
 torch.manual_seed(SEED)
@@ -297,7 +297,7 @@ class HyperspectralDataset(Dataset):
 
 
 def get_rssan_dataloaders(pca_components, dataset_abbr, batch_size):
-    proc_dir = os.path.join(processed_root, f"pca_{pca_components}", dataset_abbr)
+    proc_dir = os.path.join(processed_root, dataset_abbr)
     assert os.path.exists(proc_dir), f"Data directory not found: {proc_dir}"
 
     X_tr = torch.load(os.path.join(proc_dir, "X_train.pt"))
