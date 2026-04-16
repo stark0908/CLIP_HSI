@@ -474,27 +474,9 @@ def test_epoch(model, test_loader, criterion, optimizer):
 # MAIN TRAINING LOOP
 # ═══════════════════════════════════════════════════════════════════════════
 
-def main(args):
-    """Main training function"""
-    
-    # Set seed
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    cudnn.deterministic = True
-    cudnn.benchmark = False
-    
-    logger.info("=" * 80)
-    logger.info("SpectralFormer Training - Official Repo Implementation")
-    logger.info("=" * 80)
-    logger.info(f"Dataset: {args.dataset}")
-    logger.info(f"Mode: {args.mode}")
-    logger.info(f"Patches: {args.patches}, Band Patches: {args.band_patches}")
-    logger.info(f"Epochs: {args.epoches}, Batch Size: {args.batch_size}")
-    logger.info(f"Learning Rate: {args.learning_rate}, Weight Decay: {args.weight_decay}")
-    
-    # Load data
-    logger.info("\nLoading data...")
+def load_mat_data(args):
+    """Load raw .mat data and preprocess"""
+    logger.info("Loading raw .mat data...")
     data_dir = "/home/23dcs505/datasets"
     try:
         if args.dataset == 'Indian':
@@ -508,8 +490,7 @@ def main(args):
     except FileNotFoundError:
         logger.error(f"Data files not found in {data_dir}")
         logger.error("Expected: IndianPine.mat, Pavia.mat, or Houston.mat")
-        logger.error("Download from: https://drive.google.com/drive/folders/1nRphkwDZ74p-Al_O_X3feR24aRyEaJDY")
-        return
+        return None, None, None, None, None, None, None, None
     
     TR = data['TR']
     TE = data['TE']
@@ -555,6 +536,86 @@ def main(args):
     # Generate labels
     logger.info("Generating labels...")
     y_train, y_test, y_true = train_test_label(number_train, number_test, number_true, num_classes)
+    
+    return x_train_band, x_test_band, x_true_band, y_train, y_test, y_true, num_classes, band
+
+
+def load_pt_data(args):
+    """Load pre-computed .pt tensors"""
+    logger.info("Loading pre-computed .pt tensors...")
+    
+    # Map dataset names to abbreviations
+    dataset_map = {'Indian': 'IP', 'Pavia': 'Pavia', 'Houston': 'Houston'}
+    dataset_abbr = dataset_map.get(args.dataset, args.dataset)
+    
+    data_dir = "/home/23dcs505/datasets"
+    proc_dir = os.path.join(data_dir, f"pca_{args.pca_components}", dataset_abbr)
+    
+    try:
+        X_tr = torch.load(os.path.join(proc_dir, "X_train.pt"))
+        y_tr = torch.load(os.path.join(proc_dir, "y_train.pt"))
+        X_te = torch.load(os.path.join(proc_dir, "X_test.pt"))
+        y_te = torch.load(os.path.join(proc_dir, "y_test.pt"))
+    except FileNotFoundError as e:
+        logger.error(f"Pre-computed data not found in {proc_dir}")
+        logger.error(f"Error: {e}")
+        logger.error(f"Expected structure: {proc_dir}/X_train.pt, y_train.pt, etc.")
+        return None, None, None, None, None, None, None, None
+    
+    # Convert to numpy for consistency
+    x_train = X_tr.numpy() if isinstance(X_tr, torch.Tensor) else X_tr
+    x_test = X_te.numpy() if isinstance(X_te, torch.Tensor) else X_te
+    y_train = y_tr.numpy() if isinstance(y_tr, torch.Tensor) else y_tr
+    y_test = y_te.numpy() if isinstance(y_te, torch.Tensor) else y_te
+    
+    num_classes = int(np.max(y_train)) + 1
+    band = x_train.shape[1]  # Already in [N, C, H, W] format from .pt
+    
+    logger.info(f"X_train shape: {x_train.shape}")
+    logger.info(f"X_test shape: {x_test.shape}")
+    logger.info(f"Num classes: {num_classes}")
+    logger.info(f"Num bands: {band}")
+    
+    # For .pt data, we don't have x_true, so use x_test
+    x_true = x_test.copy()
+    y_true = y_test.copy()
+    
+    return x_train, x_test, x_true, y_train, y_test, y_true, num_classes, band
+
+
+def main(args):
+    """Main training function"""
+    
+    # Set seed
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed(args.seed)
+    cudnn.deterministic = True
+    cudnn.benchmark = False
+    
+    logger.info("=" * 80)
+    logger.info("SpectralFormer Training - Official Repo Implementation")
+    logger.info("=" * 80)
+    logger.info(f"Dataset: {args.dataset}")
+    logger.info(f"Data Source: {args.data_source}")
+    logger.info(f"Mode: {args.mode}")
+    logger.info(f"Patches: {args.patches}, Band Patches: {args.band_patches}")
+    logger.info(f"Epochs: {args.epoches}, Batch Size: {args.batch_size}")
+    logger.info(f"Learning Rate: {args.learning_rate}, Weight Decay: {args.weight_decay}")
+    
+    # Load data based on source
+    logger.info("\nLoading data...")
+    if args.data_source == 'mat':
+        x_train_band, x_test_band, x_true_band, y_train, y_test, y_true, num_classes, band = load_mat_data(args)
+    elif args.data_source == 'pt':
+        x_train_band, x_test_band, x_true_band, y_train, y_test, y_true, num_classes, band = load_pt_data(args)
+    else:
+        logger.error(f"Unknown data source: {args.data_source}")
+        return
+    
+    if x_train_band is None:
+        logger.error("Failed to load data")
+        return
     
     # Convert to torch tensors
     logger.info("Converting to PyTorch tensors...")
@@ -614,7 +675,7 @@ def main(args):
                 model.load_state_dict(torch.load('./ViT.pt', map_location=DEVICE))
             elif (args.mode == 'CAF') and (args.patches == 1):
                 model.load_state_dict(torch.load('./SpectralFormer_pixel.pt', map_location=DEVICE))
-            elif (args.mode == 'CAF') and (args.patches == 7):
+            elif (args.mode == 'CAF') and (args.patches == 9):
                 model.load_state_dict(torch.load('./SpectralFormer_patch.pt', map_location=DEVICE))
             else:
                 raise ValueError("Wrong parameters for loading model")
@@ -632,16 +693,7 @@ def main(args):
         logger.info(f"OA: {OA2:.4f} | AA: {AA_mean2:.4f} | Kappa: {Kappa2:.4f}")
         logger.info("="*80)
         logger.info(f"AA per class:\n{AA2}")
-        
-        # Generate classification map
-        logger.info("Generating classification map...")
-        pre_u = test_epoch(model, label_true_loader, criterion, optimizer)
-        prediction_matrix = np.zeros((height, width), dtype=float)
-        for i in range(total_pos_true.shape[0]):
-            prediction_matrix[total_pos_true[i, 0], total_pos_true[i, 1]] = pre_u[i] + 1
-        
-        savemat('./classification_map.mat', {'prediction': prediction_matrix, 'label': label})
-        logger.info("Classification map saved to classification_map.mat")
+        logger.info("Classification map generation skipped (not available with .pt data)")
         
     elif args.flag_test == 'train':
         logger.info("\nStarting training...")
@@ -696,6 +748,8 @@ if __name__ == "__main__":
     # Dataset
     parser.add_argument('--dataset', choices=['Indian', 'Pavia', 'Houston'], 
                        default='Indian', help='dataset to use')
+    parser.add_argument('--data_source', choices=['mat', 'pt'], 
+                       default='mat', help='data source (mat=raw files, pt=pre-computed tensors)')
     parser.add_argument('--flag_test', choices=['test', 'train'], 
                        default='train', help='testing or training mode')
     parser.add_argument('--mode', choices=['ViT', 'CAF'], 
@@ -714,6 +768,9 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='learning rate')
     parser.add_argument('--gamma', type=float, default=0.9, help='learning rate decay factor')
     parser.add_argument('--weight_decay', type=float, default=0, help='weight decay')
+    
+    # Pre-computed data parameters
+    parser.add_argument('--pca_components', type=int, default=50, help='PCA components (for pt data source)')
     
     args = parser.parse_args()
     
