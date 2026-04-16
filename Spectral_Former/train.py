@@ -381,7 +381,7 @@ def cal_results(matrix):
     shape = np.shape(matrix)
     number = 0
     sum_val = 0
-    AA = np.zeros([shape[0]], dtype=np.float)
+    AA = np.zeros([shape[0]], dtype=np.float64)
     
     for i in range(shape[0]):
         number += matrix[i, i]
@@ -648,11 +648,13 @@ def main(args):
         tic = time.time()
         
         for epoch in range(args.epoches):
-            scheduler.step()
-            
             # Train
             model.train()
             train_acc, train_obj, tar_t, pre_t = train_epoch(model, label_train_loader, criterion, optimizer)
+            
+            # Step scheduler AFTER optimizer step (done inside train_epoch)
+            scheduler.step()
+            
             OA1, AA_mean1, Kappa1, AA1 = output_metric(tar_t, pre_t)
             
             # Test
