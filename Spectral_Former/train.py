@@ -545,11 +545,14 @@ def load_pt_data(args):
     logger.info("Loading pre-computed .pt tensors...")
     
     # Map dataset names to abbreviations
-    dataset_map = {'Indian': 'IP', 'Pavia': 'Pavia', 'Houston': 'Houston'}
+    dataset_map = {'Indian': 'IP', 'Pavia': 'PU', 'Houston': 'H13'}
     dataset_abbr = dataset_map.get(args.dataset, args.dataset)
     
+    # Construct path based on training split
     data_dir = "/home/23dcs505/datasets"
-    proc_dir = os.path.join(data_dir, f"pca_{args.pca_components}", dataset_abbr)
+    proc_dir = os.path.join(data_dir, "HSI", f"pca{args.pca_components}_train{args.train_split}", dataset_abbr)
+    
+    logger.info(f"Loading from: {proc_dir}")
     
     try:
         X_tr = torch.load(os.path.join(proc_dir, "X_train.pt"))
@@ -771,6 +774,7 @@ if __name__ == "__main__":
     
     # Pre-computed data parameters
     parser.add_argument('--pca_components', type=int, default=50, help='PCA components (for pt data source)')
+    parser.add_argument('--train_split', type=int, default=5, help='Training split (5, 10, 15, 20 for pt data source)')
     
     args = parser.parse_args()
     
