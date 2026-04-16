@@ -622,16 +622,32 @@ def main(args):
     
     # Convert to torch tensors
     logger.info("Converting to PyTorch tensors...")
-    x_train = torch.from_numpy(x_train_band.transpose(0, 2, 1)).type(torch.FloatTensor)
+    
+    # Check data shape and transpose accordingly
+    # .mat data: [N, band_patches*H*W, band] → transpose to [N, band, H*W]
+    # .pt data: [N, C, H, W] → already correct, just convert
+    if len(x_train_band.shape) == 3:
+        # Raw .mat data format
+        logger.info(f"Detected raw .mat format: {x_train_band.shape}")
+        x_train = torch.from_numpy(x_train_band.transpose(0, 2, 1)).type(torch.FloatTensor)
+        x_test = torch.from_numpy(x_test_band.transpose(0, 2, 1)).type(torch.FloatTensor)
+        x_true = torch.from_numpy(x_true_band.transpose(0, 2, 1)).type(torch.FloatTensor)
+    elif len(x_train_band.shape) == 4:
+        # Pre-computed .pt data format [N, C, H, W]
+        logger.info(f"Detected .pt format: {x_train_band.shape}")
+        x_train = torch.from_numpy(x_train_band).type(torch.FloatTensor)
+        x_test = torch.from_numpy(x_test_band).type(torch.FloatTensor)
+        x_true = torch.from_numpy(x_true_band).type(torch.FloatTensor)
+    else:
+        logger.error(f"Unexpected data shape: {x_train_band.shape}")
+        return
+    
     y_train = torch.from_numpy(y_train).type(torch.LongTensor)
-    Label_train = Data.TensorDataset(x_train, y_train)
-    
-    x_test = torch.from_numpy(x_test_band.transpose(0, 2, 1)).type(torch.FloatTensor)
     y_test = torch.from_numpy(y_test).type(torch.LongTensor)
-    Label_test = Data.TensorDataset(x_test, y_test)
-    
-    x_true = torch.from_numpy(x_true_band.transpose(0, 2, 1)).type(torch.FloatTensor)
     y_true = torch.from_numpy(y_true).type(torch.LongTensor)
+    
+    Label_train = Data.TensorDataset(x_train, y_train)
+    Label_test = Data.TensorDataset(x_test, y_test)
     Label_true = Data.TensorDataset(x_true, y_true)
     
     # Create dataloaders
